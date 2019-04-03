@@ -18,15 +18,15 @@ using std::size_t;
 using std::string;
 
 /* what type of symbol we are currently scanning */
-enum State {
+enum ScannerState {
 
-  /* indeterminate state */
+  /* indeterminate state - nothing has been scanned */
   undefined,
 
-  /* ignoring everything inside of a comment */
+  /* currently skipping over a comment */
   comment,
 
-  /* reading an identifier, which may be a keyword */
+  /* reading an identifier, which may be a keyword instead */
   identifier,
 
   /* reading a normal or long integer */
@@ -37,55 +37,75 @@ enum State {
 
 };
 
+/* symbols that signal comments */
 const string COMMENT_CLOSE = "*/";
 const string COMMENT_OPEN = "/*";
 const string COMMENT_SINGLE = "//";
 
+/* valid Simple C keywords */
 const set<string> keywords {
   "auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else", "enum", "extern", 
   "float", "for", "goto", "if", "int", "long", "register", "return", "short", "signed", "sizeof", "static", 
   "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while"
 };
 
+/* valid Simple C operators */
 const set<string> operators {
   "=", "|", "||", "&&", "==", "!=", "<", ">", "<=", ">=", "+", "-", "*", "/", "%", "&", "!", "++", "--", ".", 
   "->", "(", ")", "[", "]", "{", "}", ";", ":", ","
 };
 
-bool scan_comments( char symbol, char next_symbol );
-bool scan_strings( char symbol, char next_symbol );
-bool scan_numbers( char symbol, char next_symbol );
-bool scan_identifiers( char symbol, char next_symbol );
-bool scan_keywords( char symbol, char next_symbol );
-bool scan_operators( char symbol, char next_symbol );
+/* scan input for each type of Simple C syntax
+  returns true when a match is found with input symbol, false if the input symbol does not fit
+  the conditions of this scan */
+bool scan_comments( char& symbol, char& next_symbol );
+bool scan_strings( char& symbol, char& next_symbol );
+bool scan_numbers( char& symbol, char& next_symbol );
+bool scan_identifiers( char& symbol, char& next_symbol );
+bool scan_keywords( char& symbol, char& next_symbol );
+bool scan_operators( char& symbol, char& next_symbol );
 
+/* returns true when symbol matches L or l, indicating a long int */
+bool is_long( char symbol );
+/* returns true when symbol is a valid identifier character, i.e. underscores and alpha */
+bool is_id( char symbol );
+/* returns a string from one char input */
+string chartos( char symbol );
+
+/* empties the buffer, resets ScannerState to default and prints an output message */
 void reset( string msg = "" );
+/* store a character in the buffer */
 void store( char in );
+/* return the current buffer of characters */
 string stored( );
+/* skip the next character in the buffer, typically after peeking and deciding to toss it */
 void skip_next( );
+/* skip input until first character (c) is found */
 void skip_until( char c );
 
+/* string of increasing size as input is processed, returned to default ScannerState by reset( ) */
 string cache = "";
-State state = undefined;
+ScannerState state = undefined;
 
 int main( void ) {
   char c;
 
   while (cin.get( c )) {
     // always store next char in case we need it (likely)
-    const char peek = cin.peek( );
+    char peek = cin.peek( );
 
+    // each method returns true if an item was processed, i.e., ready to move to next char
     if (scan_comments( c, peek )) continue;
     if (scan_strings( c, peek )) continue;
-    if (scan_numbers( c, peek )) continue;
     if (scan_identifiers( c, peek )) continue;
     if (scan_operators( c, peek )) continue;
+    if (scan_numbers( c, peek )) continue;
   }
 
   return EXIT_SUCCESS;
 }
 
-bool scan_comments( char symbol, char symbol_next ) {
+bool scan_comments( char& symbol, char& symbol_next ) {
   switch (state) {
     // (on close */): skip multi-line comments
     case comment:
@@ -109,13 +129,15 @@ bool scan_comments( char symbol, char symbol_next ) {
   return true;
 }
 
-bool scan_strings( char symbol, char next_symbol ) {
+bool scan_strings( char& symbol, char& next_symbol ) {
   switch (state) {
     case text:
-      // reached the end of the string
-      if (symbol == '"') reset( "string:\"" + stored( ) + "\"" );
-      // otherwise continue reading string
-      else store( symbol );
+      /* reached the end of the string */
+      if (symbol == '"') 
+        reset( "string:\"" + stored( ) + "\"" );
+      /* otherwise continue reading string */
+      else 
+        store( symbol );
 
       return true;
 
@@ -131,71 +153,43 @@ bool scan_strings( char symbol, char next_symbol ) {
   }
 }
 
-bool scan_numbers( char symbol, char next_symbol ) {
+bool scan_numbers( char& symbol, char& next_symbol ) {
   switch (state) {
-    /* continuing to read a number */
+    // continuing to read a number
     case number:
       if (isdigit( next_symbol )) return true;
       /* reached the end of the number */
       else {
         store( symbol );
         
-        if ((next_symbol == 'L' || next_symbol == 'l')) {
+        if (is_long( next_symbol )) {
           store( next_symbol );
           skip_next( );
         }
 
-        reset( ((next_symbol == 'L' || next_symbol == 'l') ? "long" : "int") + string(":") + stored( ) );
+        reset( (is_long( next_symbol ) ? "long" : "int") + string(":") + stored( ) );
         return true; 
       }
 
-    /* may find a number */
-    default:
-      // identify number
+    // may find a number 
+    case undefined:
+      /* identify numbers */
       if (isdigit( symbol )) {
         store( symbol );
         state = number;
 
-        // try to identify a long integer immediately (possible)
-        if (next_symbol == 'L' || next_symbol == 'l') {
+        // try to identify a one-character long int
+        if (is_long( next_symbol )) {
           store( next_symbol );
           skip_next( );
-          reset( "long:" + stored( ) );
 
+          reset( "long:" + stored( ) );
           return true;
         } else if (!isdigit( next_symbol )) {
+          /* or maybe we've matched a one-character int */
           reset( "int:" + stored( ) );
           return true;
         }
-      }
-  }
-
-  return false;
-}
-
-bool scan_identifiers( char symbol, char next_symbol ) {
-  switch (state) {
-    case identifier:
-      if (isalpha( symbol )) {
-        store( symbol );
-
-        if (!isalpha( next_symbol )) {
-          if (keywords.find( stored( ) ) != keywords.end()) 
-            reset( "keyword:" + stored( ) );
-          else if (!isalnum( next_symbol )) 
-            reset( "identifier:" + stored( ) );
-          return true;
-        }
-        
-        return false;
-      }
-
-    case undefined:
-      if (isalpha( symbol ) || next_symbol == '_') {
-        if (isalpha( next_symbol )) {
-          store( symbol );
-          state = identifier;
-        } else reset( "identifier:" + string( 1, symbol ) );
 
         return true;
       }
@@ -204,11 +198,49 @@ bool scan_identifiers( char symbol, char next_symbol ) {
   return false;
 }
 
-bool scan_operators( char symbol, char next_symbol ) {
-  if (operators.find( string( 1, symbol ) ) != operators.end()) {
-    string match = string() + symbol + next_symbol;
+bool scan_identifiers( char& symbol, char& next_symbol ) {
+  switch (state) {
+    // continuining previous identifier
+    case identifier:
+      store( symbol );
 
+      /* peek to make sure we haven't reached the end */
+      if (!is_id( next_symbol )) {
+        // if so, maybe it's a keyword
+        if (keywords.find( stored( ) ) != keywords.end( )) 
+          reset( "keyword:" + stored( ) );
+        // otherwise, just an identifier
+        else reset( "identifier:" + stored( ) );
+
+        return true;
+      }
+      
+      return false;
+
+    // might be an indentifier
+    case undefined:
+      /* note we specifically prevent numbers from being first symbol */
+      if (is_id( symbol ) && !isdigit( symbol )) {
+        // identify continuing (longer than one char) identifier
+        if (is_id( next_symbol )) {
+          store( symbol );
+          state = identifier;
+        } else reset( "identifier:" + chartos( symbol ) );
+
+        return true;
+      }
+  }
+
+  return false;
+}
+
+bool scan_operators( char& symbol, char& next_symbol ) {
+  /* try to find this symbol in the operators table */
+  if (operators.find( chartos( symbol ) ) != operators.end()) {
     store( symbol );
+
+    // try to match the next character as well, identifying operators like &&
+    string match = chartos( symbol ) + chartos( next_symbol );
     if (operators.find( match ) != operators.end()) {
       store( next_symbol );
       skip_next( );
@@ -219,6 +251,18 @@ bool scan_operators( char symbol, char next_symbol ) {
   }
 
   return false;
+}
+
+bool is_long( char symbol ) {
+  return symbol == 'L' || symbol == 'l';
+}
+
+bool is_id( char symbol ) {
+  return isalpha( symbol ) || isdigit( symbol ) || symbol == '_';
+}
+
+string chartos( char symbol ) {
+  return string( 1, symbol );
 }
 
 void reset( string msg ) {
