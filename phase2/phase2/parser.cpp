@@ -576,9 +576,7 @@ int main( void )
 
   // read tokens until end of input stream
   while (lookahead != DONE)
-  {
     translation_unit();
-  }
 
   return EXIT_SUCCESS;
 }
