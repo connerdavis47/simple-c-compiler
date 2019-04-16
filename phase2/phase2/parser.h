@@ -151,10 +151,14 @@ static void declarations( );
 static void declaration( );
 static void declarator( int );
 
-static void translation_unit( );
-
 static void declarators( );
 static void global_declarator( );
+
+/**
+ * The entry point of the parser, or in other words,
+ * the very first function in the whole recursive tree.
+ */
+static void translation_unit( );
 
 // (END) - Translation unit
 
