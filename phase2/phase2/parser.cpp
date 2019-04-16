@@ -10,7 +10,6 @@
 # include "tokens.h"
 # include "parser.h"
 
-using std::cerr;
 using std::cout;
 using std::endl;
 using std::string;
@@ -28,6 +27,8 @@ static int lookahead;
  * STRING will have a value "contained within the quotes".
  */
 static string buffer;
+
+// (START) - Tooling
 
 static void error( string src, string msg )
 {
@@ -50,8 +51,9 @@ static void match( int token )
   if (lookahead == token)
     lookahead = lexan(buffer);
   else
-    error("match", string("token mismatch - expected <") +
-      to_string(token) + "> found <" + to_string(lookahead) + ">"
+    error("match", 
+      string("token mismatch - expected <") 
+      + to_string(token) + "> found <" + to_string(lookahead) + ">"
     );
 }
 
@@ -63,12 +65,12 @@ static int match_specifier( )
   {
     match(lookahead);
 
-    // STRUCTS are of special format to other specifiers,
-    //    struct <id> <pointers> <id> ;
+    /* 
+      STRUCTS are of special format to other specifiers,
+      struct <id> <pointers> <id> ;
+     */
     if (spec == STRUCT)
-    {
       match(ID);
-    }
 
     return spec;
   }
@@ -89,6 +91,10 @@ static bool is_specifier( )
 {
   return lookahead == INT || lookahead == LONG || lookahead == STRUCT;
 }
+
+// (END) - Tooling
+
+// (START) - Expressions
 
 static void expression( )
 {
@@ -259,7 +265,8 @@ static void prefix_expression( )
 
     print("sizeof");
   }
-  else post_expression();
+  else 
+    post_expression();
 }
 
 static void post_expression( )
@@ -318,9 +325,7 @@ static void cast_expression( )
 static void general_expression( )
 {
   if (lookahead == NUM)
-  {
     match(NUM);
-  }
   else if (lookahead == ID)
   {
     match(ID);
@@ -337,12 +342,68 @@ static void general_expression( )
   }
 }
 
+// (END) - Expressions
+
+// (START) - Functions
+
+static void arguments( )
+{
+  argument();
+
+  while (lookahead == ',')
+  {
+    match(',');
+    argument();
+  }
+}
+
+static void argument( )
+{
+  if (lookahead == STRING)
+    match(STRING);
+  else
+    expression();
+}
+
+static void parameters( )
+{
+  if (lookahead == ')')
+    return;
+  else if (lookahead == VOID)
+    match(VOID);
+  else
+  {
+    parameter();
+
+    while (lookahead == ',')
+    {
+      match(',');
+      parameter();
+    }
+  }
+}
+
+static void parameter( )
+{
+  match_specifier();
+  pointers();
+  match(ID);
+}
+
+static void pointers( )
+{
+  while (lookahead == '*')
+    match('*');
+}
+
+// (END) - Functions
+
+// (START) - Translation unit
+
 static void statements( )
 {
   while (lookahead != '}')
-  {
     statement();
-  }
 }
 
 static void statement( )
@@ -416,7 +477,7 @@ static void declaration( )
   match(';');
 }
 
-static void declarator( int spec = -1 )
+static void declarator( int spec )
 {
   pointers();
   match(ID);
@@ -426,14 +487,6 @@ static void declarator( int spec = -1 )
     match('[');
     match(NUM);
     match(']');
-  }
-}
-
-static void pointers( )
-{
-  while (lookahead == '*')
-  {
-    match('*');
   }
 }
 
@@ -471,7 +524,8 @@ static void translation_unit( )
         statements();
         match('}');
       }
-      else declarators();
+      else 
+        declarators();
     }
     else if (lookahead == '[')
     {
@@ -483,41 +537,10 @@ static void translation_unit( )
   }
 }
 
-static void parameters( )
-{
-  if (lookahead == VOID)
-  {
-    match(VOID);
-  }
-  else if (lookahead == ')')
-  {
-    return;
-  }
-  else
-  {
-    parameter();
-
-    while (lookahead == ',')
-    {
-      match(',');
-      parameter();
-    }
-  }
-}
-
-static void parameter( )
-{
-  match_specifier();
-  pointers();
-  match(ID);
-}
-
 static void declarators( )
 {
   if (lookahead == ';')
-  {
     match(';');
-  }
   else
   {
     while (lookahead == ',')
@@ -552,24 +575,7 @@ static void global_declarator( )
   }
 }
 
-static void arguments( )
-{
-  argument();
-
-  while (lookahead == ',')
-  {
-    match(',');
-    argument();
-  }
-}
-
-static void argument( )
-{
-  if (lookahead == STRING)
-    match(STRING);
-  else
-    expression();
-}
+// (END) - Translation unit
 
 int main( void )
 {

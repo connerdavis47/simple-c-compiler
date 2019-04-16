@@ -13,6 +13,8 @@
 
 # include <string>
 
+// (START) - Tooling
+
 /**
  * Function: error( string& )
  * 
@@ -70,6 +72,8 @@ static void print( std::string );
  */
 static bool is_specifier( );
 
+// (END) - Tooling
+
 // (START) - Expressions
 
 /**
@@ -126,7 +130,19 @@ static void general_expression( );
 
 // (END) - Expressions
 
-// (START) - Statements
+// (START) - Functions
+
+static void arguments( );
+static void argument( );
+
+static void parameters( );
+static void parameter( );
+
+static void pointers( );
+
+// (END) - Functions
+
+// (START) - Translation unit
 
 static void statements( );
 static void statement( );
@@ -135,22 +151,10 @@ static void declarations( );
 static void declaration( );
 static void declarator( int );
 
-static void pointers( );
-
-// (END) - Statements
-
-// (START) - Translation unit
-
 static void translation_unit( );
-
-static void parameters( );
-static void parameter( );
 
 static void declarators( );
 static void global_declarator( );
-
-static void arguments( );
-static void argument( );
 
 // (END) - Translation unit
 
