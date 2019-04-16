@@ -55,6 +55,24 @@ static void match( int token )
     );
 }
 
+static int match_specifier( )
+{
+  int save = lookahead;
+
+  if (is_specifier())
+  {
+    match(lookahead);
+
+    return save;
+  }
+  else
+  {
+    error("match_specifier", "expected specifier but there was none");
+
+    return -1;
+  }
+}
+
 static void print( string output )
 {
   cout << output << endl;
@@ -206,19 +224,19 @@ static void prefix_expression( )
   else if (lookahead == '-')
   {
     match('-');
-    post_expression();
+    prefix_expression();
     print("neg");
   }
   else if (lookahead == '&')
   {
     match('&');
-    post_expression();
+    prefix_expression();
     print("addr");
   }
   else if (lookahead == '*')
   {
     match('*');
-    post_expression();
+    prefix_expression();
     print("deref");
   }
   else if (lookahead == SIZEOF)
@@ -256,10 +274,9 @@ static void post_expression( )
       match(ID);
       print("dot");
     }
-    else if (lookahead == '-')
+    else if (lookahead == ARROW)
     {
-      match('-');
-      match('>');
+      match(ARROW);
       match(ID);
       print("arrow");
     }
@@ -269,17 +286,18 @@ static void post_expression( )
 
 static void cast_expression( )
 {
+  general_expression();
+
   if (lookahead == '(')
   {
     match('(');
 
     if (is_specifier())
     {
-      if (lookahead == INT) match(INT);
-      else if (lookahead == LONG) match(LONG);
-      else if (lookahead == STRUCT) match(STRUCT);
-
-      //pointers();
+      int spec = match_specifier();
+      if (spec == STRUCT)
+        match(ID);
+      pointers();
       match(')');
       expression();
       print("cast");
@@ -289,7 +307,7 @@ static void cast_expression( )
       expression();
       match(')');
     }
-  } else general_expression();
+  }
 }
 
 static void general_expression( )
@@ -307,14 +325,255 @@ static void general_expression( )
       match('(');
       
       if (lookahead != ')')
-      {
-        //argument_list();
-      }
+        arguments();
 
       match(')');
     }
   }
-  else error("general_expression", "invalid lookahead");
+}
+
+static void statements( )
+{
+  while (lookahead != '}')
+  {
+    statement();
+  }
+}
+
+static void statement( )
+{
+  if (lookahead == '{')
+  {
+    match('{');
+    declarations();
+    statements();
+    match('}');
+  }
+  else if (lookahead == RETURN)
+  {
+    match(RETURN);
+    expression();
+    match(';');
+  }
+  else if (lookahead == WHILE)
+  {
+    match(WHILE);
+    match('(');
+    expression();
+    match(')');
+    statement();
+  }
+  else if (lookahead == IF)
+  {
+    match(IF);
+    match('(');
+    expression();
+    match(')');
+    statement();
+
+    if (lookahead == ELSE)
+    {
+      match(ELSE);
+      statement();
+    }
+  }
+  else
+  {
+    expression();
+
+    if (lookahead == '=')
+    {
+      match('=');
+      expression();
+    }
+
+    match(';');
+  }
+}
+
+static void declarations( )
+{
+  while (is_specifier())
+    declaration();
+}
+
+static void declaration( )
+{
+  int spec = match_specifier();
+  if (spec == STRUCT) 
+  {
+    match(ID);
+  }
+
+  declarator(spec);
+
+  while (lookahead == ',')
+  {
+    match(',');
+    declarator(spec);
+  }
+
+  match(';');
+}
+
+static void declarator( int spec = -1 )
+{
+  pointers();
+  match(ID);
+
+  if (lookahead == '[')
+  {
+    match('[');
+    match(NUM);
+    match(']');
+  }
+}
+
+static void pointers( )
+{
+  while (lookahead == '*')
+  {
+    match('*');
+  }
+}
+
+static void translation_unit( )
+{
+  if (lookahead == STRUCT)
+  {
+    match(STRUCT);
+    match(ID);
+
+    if (lookahead == '{')
+    {
+      match('{');
+      declarations();
+      match('}');
+      match(';');
+    }
+  }
+  else
+  {
+    int spec = match_specifier();
+    pointers();
+    match(ID);
+
+    if (lookahead == '(')
+    {
+      match('(');
+      parameters();
+      match(')');
+
+      if (lookahead == '{')
+      {
+        match('{');
+        declarations();
+        statements();
+        match('}');
+      }
+      else declarators();
+    }
+    else if (lookahead == '[')
+    {
+      match('[');
+      match(NUM);
+      match(']');
+      declarators();
+    }
+  }
+}
+
+static void parameters( )
+{
+  if (lookahead == VOID)
+  {
+    match(VOID);
+  }
+  else if (lookahead == ')')
+  {
+    return;
+  }
+  else
+  {
+    parameter();
+
+    while (lookahead == ',')
+    {
+      match(',');
+      parameter();
+    }
+  }
+}
+
+static void parameter( )
+{
+  int spec = match_specifier();
+  if (spec == STRUCT)
+  {
+    match(ID);
+  }
+
+  pointers();
+  match(ID);
+}
+
+static void declarators( )
+{
+  if (lookahead == ';')
+  {
+    match(';');
+  }
+  else
+  {
+    while (lookahead == ',')
+    {
+      match(',');
+      global_declarator();
+    }
+
+    match(';');
+  }
+}
+
+static void global_declarator( )
+{
+  pointers();
+  match(ID);
+
+  if (lookahead == '(')
+  {
+    match('(');
+    
+    if (lookahead != ')')
+      arguments();
+
+    match(')');
+  }
+  else if (lookahead == '[')
+  {
+    match('[');
+    match(NUM);
+    match(']');
+  }
+}
+
+static void arguments( )
+{
+  argument();
+
+  while (lookahead == ',')
+  {
+    match(',');
+    argument();
+  }
+}
+
+static void argument( )
+{
+  if (lookahead == STRING)
+    match(STRING);
+  else
+    expression();
 }
 
 int main( void )
@@ -325,7 +584,7 @@ int main( void )
   // read tokens until end of input stream
   while (lookahead != DONE)
   {
-    expression();
+    translation_unit();
   }
 
   return EXIT_SUCCESS;

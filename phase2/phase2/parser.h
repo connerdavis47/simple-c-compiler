@@ -31,7 +31,7 @@ static void error( std::string );
  *  function so that it can be referenced later. Typically
  *  used to pass a field to child recursive functions.
  */
-static std::string keep( int token );
+static std::string keep( int );
 
 /**
  * Function: match( int )
@@ -43,6 +43,8 @@ static std::string keep( int token );
  */
 static void match( int );
 
+static int match_specifier( );
+
 /**
  * Function: print( std::string )
  * 
@@ -50,7 +52,7 @@ static void match( int );
  *  Prints a result to the standard output which is how we are
  *  graded.
  */
-static void print( std::string output );
+static void print( std::string );
 
 static bool is_specifier( );
 
@@ -68,5 +70,28 @@ static void cast_expression( );
 static void general_expression( );
 
 // (END) - Expressions
+
+// (START) - Statements
+
+static void statements( );
+static void statement( );
+static void declarations( );
+static void declaration( );
+static void declarator( int );
+static void pointers( );
+
+// (END) - Statements
+
+// (START) - Translation unit
+
+static void translation_unit( );
+static void parameters( );
+static void parameter( );
+static void declarators( );
+static void global_declarator( );
+static void arguments( );
+static void argument( );
+
+// (END) - Translation unit
 
 # endif /* PARSER_H */
