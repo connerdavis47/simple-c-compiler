@@ -5,7 +5,7 @@
  * Description:	
  *  This file contains a parser for Simple C. The parser is simply 
  *  one giant set of if-statements that handle all possible valid 
- *  inputs established by the reduced Simple C grammar.
+ *  inputs established by our fully factored Simple C grammar.
  */
 
 # ifndef PARSER_H
@@ -43,6 +43,13 @@ static std::string keep( int );
  */
 static void match( int );
 
+/**
+ * Function: match_specifier( )
+ * 
+ * Description:
+ *  Matches a valid specifier, then returns its type. For example,
+ *  a valid return could be STRUCT or INT.
+ */
 static int match_specifier( );
 
 /**
@@ -54,19 +61,67 @@ static int match_specifier( );
  */
 static void print( std::string );
 
+/**
+ * Function: is_specifier( )
+ * 
+ * Description:
+ *  Returns true if the current lookahead is a valid specifier.
+ *  In Simple C, valid specifiers include int, long, and struct.
+ */
 static bool is_specifier( );
 
 // (START) - Expressions
 
+/**
+ * Entry point for recursive tree processing expressions.
+ */
 static void expression( );
+/**
+ * Scans for logical comparison operators, && and ||.
+ */
 static void logical_cmp_expression( );
+/**
+ * Scans for equality operators, == and !=.
+ */
 static void equality_expression( );
+/**
+ * Scans for relational operators, <, >, <=, >=.
+ */
 static void relation_expression( );
+/**
+ * Scans for additive operators, + and -.
+ */
 static void add_expression( );
+/**
+ * Scans for multiplicative operators, *, /, %.
+ */
 static void multiply_expression( );
+/**
+ * Scans for operators that prefix an identifier,
+ * !, &, *, -, sizeof(..).
+ */
 static void prefix_expression( );
+/**
+ * Scans for operators postfix to the identifier,
+ * [], ->, and . (dot).
+ */
 static void post_expression( );
+/**
+ * Scans for type casts. In Simple C, an expression followed 
+ * by a left parenthesis may instead be another expression.
+ * We handle both of those cases here.
+ */
 static void cast_expression( );
+/**
+ * Finally, scans for numbers and identifiers. This is the
+ * deepest level of the expression recursion tree, which means
+ * that any symbols reaching this point will be one or the
+ * other.
+ * 
+ * If the expression matches an identifier at this point, we
+ * will look to see whether it is a function with parameters or
+ * a variable.
+ */
 static void general_expression( );
 
 // (END) - Expressions
@@ -75,9 +130,11 @@ static void general_expression( );
 
 static void statements( );
 static void statement( );
+
 static void declarations( );
 static void declaration( );
 static void declarator( int );
+
 static void pointers( );
 
 // (END) - Statements
@@ -85,10 +142,13 @@ static void pointers( );
 // (START) - Translation unit
 
 static void translation_unit( );
+
 static void parameters( );
 static void parameter( );
+
 static void declarators( );
 static void global_declarator( );
+
 static void arguments( );
 static void argument( );
 

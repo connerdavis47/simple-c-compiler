@@ -57,13 +57,20 @@ static void match( int token )
 
 static int match_specifier( )
 {
-  int save = lookahead;
+  int spec = lookahead;
 
   if (is_specifier())
   {
     match(lookahead);
 
-    return save;
+    // STRUCTS are of special format to other specifiers,
+    //    struct <id> <pointers> <id> ;
+    if (spec == STRUCT)
+    {
+      match(ID);
+    }
+
+    return spec;
   }
   else
   {
@@ -294,9 +301,7 @@ static void cast_expression( )
 
     if (is_specifier())
     {
-      int spec = match_specifier();
-      if (spec == STRUCT)
-        match(ID);
+      match_specifier();
       pointers();
       match(')');
       expression();
@@ -400,11 +405,6 @@ static void declarations( )
 static void declaration( )
 {
   int spec = match_specifier();
-  if (spec == STRUCT) 
-  {
-    match(ID);
-  }
-
   declarator(spec);
 
   while (lookahead == ',')
@@ -454,7 +454,7 @@ static void translation_unit( )
   }
   else
   {
-    int spec = match_specifier();
+    match_specifier();
     pointers();
     match(ID);
 
@@ -507,12 +507,7 @@ static void parameters( )
 
 static void parameter( )
 {
-  int spec = match_specifier();
-  if (spec == STRUCT)
-  {
-    match(ID);
-  }
-
+  match_specifier();
   pointers();
   match(ID);
 }
