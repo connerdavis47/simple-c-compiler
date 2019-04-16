@@ -88,6 +88,10 @@ static bool is_specifier( )
 
 // (START) - Expressions
 
+/*
+ expression                  :=  logical_compare_expression
+                                | expression || logical_compare_expression
+ */
 static void expression( )
 {
   logical_cmp_expression();
@@ -100,6 +104,10 @@ static void expression( )
   }
 }
 
+/*
+  logical_compare_expression  :=  equality_expression
+                                | logical_compare_expression && equality_expression
+ */
 static void logical_cmp_expression( )
 {
   equality_expression();
@@ -112,6 +120,11 @@ static void logical_cmp_expression( )
   }
 }
 
+/*
+  equality_expression         :=  relational_expression
+                                | equality_expression == relational_expression
+                                | equality_expression != relational_expression
+ */
 static void equality_expression( )
 {
   relation_expression();
@@ -134,6 +147,13 @@ static void equality_expression( )
   }
 }
 
+/*
+  relational_expression       :=  additive_expression
+                                | relational_expression <= additive_expression
+                                | relational_expression >= additive_expression
+                                | relational_expression < additive_expression
+                                | relational_expression > additive_expression
+ */
 static void relation_expression( )
 {
   add_expression();
@@ -168,6 +188,11 @@ static void relation_expression( )
   }
 }
 
+/*
+  additive_expression         :=  multiplicative_expression
+                                | additive_expression + multiplicative_expression
+                                | additive_expression - multiplicative_expression
+ */
 static void add_expression( )
 {
   multiply_expression();
@@ -190,6 +215,12 @@ static void add_expression( )
   }
 }
 
+/*
+  multiplicative_expression   :=  prefix_expression
+                                | multiplicative_expression * prefix_expression
+                                | multiplicative_expression / prefix_expression
+                                | multiplicative_expression % prefix_expression
+ */
 static void multiply_expression( )
 {
   prefix_expression();
@@ -218,6 +249,14 @@ static void multiply_expression( )
   }
 }
 
+/*
+  prefix_expression           :=  post_expression
+                                | ! prefix_expression
+                                | - prefix_expression
+                                | & prefix_expression
+                                | * prefix_expression
+                                | sizeof ( prefix_expression )
+ */
 static void prefix_expression( )
 {
   if (lookahead == '!')
@@ -261,6 +300,12 @@ static void prefix_expression( )
     post_expression();
 }
 
+/*
+  post_expression             :=  cast_expression
+                                | post_expression [ expression ]
+                                | post_expression . id
+                                | post_expression -> id
+ */
 static void post_expression( )
 {
   cast_expression();
@@ -290,6 +335,11 @@ static void post_expression( )
   }
 }
 
+/*
+  cast_expression             :=  general_expression
+                                | ( specifier pointers ) expression
+                                | ( expression )
+ */
 static void cast_expression( )
 {
   general_expression();
@@ -314,6 +364,12 @@ static void cast_expression( )
   }
 }
 
+/*
+  general_expression          :=  id ( argument_list )
+                                | id ( )
+                                | id
+                                | num
+ */
 static void general_expression( )
 {
   if (lookahead == NUM)
@@ -338,6 +394,10 @@ static void general_expression( )
 
 // (START) - Functions
 
+/*
+  argument_list               :=  argument
+                                | argument , argument_list
+ */
 static void arguments( )
 {
   argument();
@@ -349,6 +409,10 @@ static void arguments( )
   }
 }
 
+/*
+  argument                    :=  string
+                                | expression
+ */
 static void argument( )
 {
   if (lookahead == STRING)
@@ -357,6 +421,10 @@ static void argument( )
     expression();
 }
 
+/*
+  parameters                  :=  void
+                                | parameter_list
+ */
 static void parameters( )
 {
   if (lookahead == ')')
@@ -375,6 +443,9 @@ static void parameters( )
   }
 }
 
+/*
+  parameter                   :=  specifier pointers id
+ */
 static void parameter( )
 {
   match_specifier();
@@ -382,6 +453,10 @@ static void parameter( )
   match(ID);
 }
 
+/*
+  pointers                    :=  empty
+                                | * pointers
+ */
 static void pointers( )
 {
   while (lookahead == '*')
@@ -392,12 +467,25 @@ static void pointers( )
 
 // (START) - Translation unit
 
+/*
+  statements                  :=  empty
+                                | statement statements
+ */
 static void statements( )
 {
   while (lookahead != '}')
     statement();
 }
 
+/*
+  statement                   :=  { declarations statements }
+                                | return expression ;
+                                | while ( expression ) statement
+                                | if ( expression ) statement
+                                | if ( expression ) statement else statement
+                                | expression = expression;
+                                | expression ;
+ */
 static void statement( )
 {
   if (lookahead == '{')
@@ -449,12 +537,19 @@ static void statement( )
   }
 }
 
+/*
+  declarations                :=  empty
+                                | declaration declarations
+ */
 static void declarations( )
 {
   while (is_specifier())
     declaration();
 }
 
+/*
+  declaration                 :=  specifier declarator_list ;
+ */
 static void declaration( )
 {
   int spec = match_specifier();
@@ -469,19 +564,10 @@ static void declaration( )
   match(';');
 }
 
-static void declarator( int spec )
-{
-  pointers();
-  match(ID);
-
-  if (lookahead == '[')
-  {
-    match('[');
-    match(NUM);
-    match(']');
-  }
-}
-
+/*
+  declarator_list             :=  declarator
+                                | declarator , declarator_list
+ */
 static void declarators( )
 {
   if (lookahead == ';')
@@ -498,6 +584,28 @@ static void declarators( )
   }
 }
 
+/*
+  declarator                  :=  pointers id
+                                | pointers id [ num ]
+ */
+static void declarator( int spec )
+{
+  pointers();
+  match(ID);
+
+  if (lookahead == '[')
+  {
+    match('[');
+    match(NUM);
+    match(']');
+  }
+}
+
+/*
+  global_declarator           :=  pointers id
+                                | pointers id ( )
+                                | pointers id [ num ]
+ */
 static void global_declarator( )
 {
   pointers();
@@ -520,6 +628,12 @@ static void global_declarator( )
   }
 }
 
+/*
+  translation_unit            :=  empty
+                                | struct id { declaration declarations } ; translation_unit
+                                | specifier global_declarator_list ;
+                                | specifier global_declarator ( parameters ) { declarations statements }
+ */
 static void translation_unit( )
 {
   if (lookahead == STRUCT)
