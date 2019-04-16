@@ -16,24 +16,14 @@
 // (START) - Tooling
 
 /**
- * Function: error( string& )
+ * Function: error( string, string )
  * 
  * Description:
  *  Report an error to the standard error including a reference to 
- *  the calling function. Helps trace more precisely where things 
- *  went wrong.
+ *  the calling function, whose name is the first string parameter. 
+ *  Helps trace more precisely where things went wrong.
  */
-static void error( std::string );
-
-/**
- * Function: keep( int )
- * 
- * Description:
- *  Match the provided token, but return its value with this
- *  function so that it can be referenced later. Typically
- *  used to pass a field to child recursive functions.
- */
-static std::string keep( int );
+static void error( std::string, std::string );
 
 /**
  * Function: match( int )

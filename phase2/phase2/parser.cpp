@@ -38,14 +38,6 @@ static void error( string src, string msg )
   exit(EXIT_FAILURE);
 }
 
-static string keep( int token )
-{
-  string buf = buffer;
-  match(token);
-
-  return buf;
-}
-
 static void match( int token )
 {
   if (lookahead == token)
@@ -490,6 +482,44 @@ static void declarator( int spec )
   }
 }
 
+static void declarators( )
+{
+  if (lookahead == ';')
+    match(';');
+  else
+  {
+    while (lookahead == ',')
+    {
+      match(',');
+      global_declarator();
+    }
+
+    match(';');
+  }
+}
+
+static void global_declarator( )
+{
+  pointers();
+  match(ID);
+
+  if (lookahead == '(')
+  {
+    match('(');
+    
+    if (lookahead != ')')
+      arguments();
+
+    match(')');
+  }
+  else if (lookahead == '[')
+  {
+    match('[');
+    match(NUM);
+    match(']');
+  }
+}
+
 static void translation_unit( )
 {
   if (lookahead == STRUCT)
@@ -534,44 +564,6 @@ static void translation_unit( )
       match(']');
       declarators();
     }
-  }
-}
-
-static void declarators( )
-{
-  if (lookahead == ';')
-    match(';');
-  else
-  {
-    while (lookahead == ',')
-    {
-      match(',');
-      global_declarator();
-    }
-
-    match(';');
-  }
-}
-
-static void global_declarator( )
-{
-  pointers();
-  match(ID);
-
-  if (lookahead == '(')
-  {
-    match('(');
-    
-    if (lookahead != ')')
-      arguments();
-
-    match(')');
-  }
-  else if (lookahead == '[')
-  {
-    match('[');
-    match(NUM);
-    match(']');
   }
 }
 
