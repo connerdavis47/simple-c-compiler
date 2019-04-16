@@ -8,5 +8,5 @@ int main(void)
     int *p;
 
     n = 10;
-    p = malloc(sizeof(*p) * n);
+    p = malloc((int) sizeof(*p) * n);
 }
