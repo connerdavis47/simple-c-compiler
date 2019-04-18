@@ -19,11 +19,18 @@
  * Function: error( string, string )
  * 
  * Description:
- *  Report an error to the standard error including a reference to 
- *  the calling function, whose name is the first string parameter. 
- *  Helps trace more precisely where things went wrong.
+ *  Report an error to the standard error.
  */
-static void error( std::string, std::string );
+static void error( std::string );
+
+/**
+ * Function: is_specifier( )
+ * 
+ * Description:
+ *  Returns true if the current lookahead is a valid specifier.
+ *  In Simple C, valid specifiers include int, long, and struct.
+ */
+static bool is_specifier( );
 
 /**
  * Function: match( int )
@@ -52,15 +59,6 @@ static int match_specifier( );
  *  graded.
  */
 static void print( std::string );
-
-/**
- * Function: is_specifier( )
- * 
- * Description:
- *  Returns true if the current lookahead is a valid specifier.
- *  In Simple C, valid specifiers include int, long, and struct.
- */
-static bool is_specifier( );
 
 // (END) - Tooling
 
@@ -130,19 +128,21 @@ static void parameter( );
 
 static void pointers( );
 
-// (END) - Functions
-
-// (START) - Translation unit
-
 static void statements( );
 static void statement( );
 
 static void declarations( );
 static void declaration( );
-static void declarator( int );
-
 static void declarators( );
-static void global_declarator( );
+static void declarator( );
+
+// (END) - Functions
+
+// (START) - Translation unit
+
+static void global_declaration( );
+static void global_declarators( );
+static bool global_declarator( );
 
 /**
  * The entry point of the parser, or in other words,

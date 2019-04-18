@@ -30,12 +30,16 @@ static string buffer;
 
 // (START) - Tooling
 
-static void error( string src, string msg )
+static void error( string msg )
 {
-  report("Syntax error at token [ %s ]", buffer);
-  report("Error source --> <%s()> ]", src);
-  report("Error message --> %s", msg);
+  report("Syntax error at token: %s", buffer);
+  report("... %s", msg);
   exit(EXIT_FAILURE);
+}
+
+static bool is_specifier( )
+{
+  return lookahead == INT || lookahead == LONG || lookahead == STRUCT;
 }
 
 static void match( int token )
@@ -43,9 +47,8 @@ static void match( int token )
   if (lookahead == token)
     lookahead = lexan(buffer);
   else
-    error("match", 
-      string("token mismatch - expected <") 
-      + to_string(token) + "> found <" + to_string(lookahead) + ">"
+    error(
+      string("token mismatch - expected <") + to_string(token) + "> found <" + to_string(lookahead) + ">"
     );
 }
 
@@ -66,12 +69,8 @@ static int match_specifier( )
 
     return spec;
   }
-  else
-  {
-    error("match_specifier", "expected specifier but there was none");
-
-    return -1;
-  }
+  
+  return -1;
 }
 
 static void print( string output )
@@ -79,23 +78,15 @@ static void print( string output )
   cout << output << endl;
 }
 
-static bool is_specifier( )
-{
-  return lookahead == INT || lookahead == LONG || lookahead == STRUCT;
-}
-
 // (END) - Tooling
 
 // (START) - Expressions
 
-/*
- expression                  :=  logical_compare_expression
-                                | expression || logical_compare_expression
- */
 static void expression( )
 {
   logical_cmp_expression();
 
+  // expression || expression
   while (lookahead == OR)
   {
     match(OR);
@@ -104,14 +95,11 @@ static void expression( )
   }
 }
 
-/*
-  logical_compare_expression  :=  equality_expression
-                                | logical_compare_expression && equality_expression
- */
 static void logical_cmp_expression( )
 {
   equality_expression();
 
+  // expression && expression
   while (lookahead == AND)
   {
     match(AND);
@@ -120,23 +108,20 @@ static void logical_cmp_expression( )
   }
 }
 
-/*
-  equality_expression         :=  relational_expression
-                                | equality_expression == relational_expression
-                                | equality_expression != relational_expression
- */
 static void equality_expression( )
 {
   relation_expression();
 
   while (true)
   {
+    // expression == expression
     if (lookahead == EQL)
     {
       match(EQL);
       relation_expression();
       print("eql");
     }
+    // expression != expression
     else if (lookahead == NEQ)
     {
       match(NEQ);
@@ -147,37 +132,34 @@ static void equality_expression( )
   }
 }
 
-/*
-  relational_expression       :=  additive_expression
-                                | relational_expression <= additive_expression
-                                | relational_expression >= additive_expression
-                                | relational_expression < additive_expression
-                                | relational_expression > additive_expression
- */
 static void relation_expression( )
 {
   add_expression();
 
   while (true)
   {
+    // expression <= expression
     if (lookahead == LEQ)
     {
       match(LEQ);
       add_expression();
       print("leq");
     }
+    // expression >= expression
     else if (lookahead == GEQ)
     {
       match(GEQ);
       add_expression();
       print("geq");
     }
+    // expression < expression
     else if (lookahead == '<')
     {
       match('<');
       add_expression();
       print("ltn");
     }
+    // expression > expression
     else if (lookahead == '>')
     {
       match('>');
@@ -188,23 +170,20 @@ static void relation_expression( )
   }
 }
 
-/*
-  additive_expression         :=  multiplicative_expression
-                                | additive_expression + multiplicative_expression
-                                | additive_expression - multiplicative_expression
- */
 static void add_expression( )
 {
   multiply_expression();
 
   while (true)
   {
+    // expression + expression
     if (lookahead == '+')
     {
       match('+');
       multiply_expression();
       print("add");
     }
+    // expression - expression
     else if (lookahead == '-')
     {
       match('-');
@@ -215,30 +194,27 @@ static void add_expression( )
   }
 }
 
-/*
-  multiplicative_expression   :=  prefix_expression
-                                | multiplicative_expression * prefix_expression
-                                | multiplicative_expression / prefix_expression
-                                | multiplicative_expression % prefix_expression
- */
 static void multiply_expression( )
 {
   prefix_expression();
 
   while (true)
   {
+    // expression * expression
     if (lookahead == '*')
     {
       match('*');
       prefix_expression();
       print("mul");
     }
+    // expression / expression
     else if (lookahead == '/')
     {
       match('/');
       prefix_expression();
       print("div");
     }
+    // expression % expression
     else if (lookahead == '%')
     {
       match('%');
@@ -249,69 +225,56 @@ static void multiply_expression( )
   }
 }
 
-/*
-  prefix_expression           :=  post_expression
-                                | ! prefix_expression
-                                | - prefix_expression
-                                | & prefix_expression
-                                | * prefix_expression
-                                | sizeof ( prefix_expression )
- */
 static void prefix_expression( )
 {
+  // ! expression
   if (lookahead == '!')
   {
     match('!');
     prefix_expression();
     print("not");
   }
+  // | - expression
   else if (lookahead == '-')
   {
     match('-');
     prefix_expression();
     print("neg");
   }
+  // | & expression
   else if (lookahead == '&')
   {
     match('&');
     prefix_expression();
     print("addr");
   }
+  // | * expression
   else if (lookahead == '*')
   {
     match('*');
     prefix_expression();
     print("deref");
   }
+  // | sizeof ( expression )
   else if (lookahead == SIZEOF)
   {
     match(SIZEOF);
-
-    if (lookahead == '(')
-    {
-      match('(');
-      prefix_expression();
-      match(')');
-    }
-
+    match('(');
+    prefix_expression();
+    match(')');
     print("sizeof");
   }
   else 
     post_expression();
 }
 
-/*
-  post_expression             :=  cast_expression
-                                | post_expression [ expression ]
-                                | post_expression . id
-                                | post_expression -> id
- */
 static void post_expression( )
 {
   cast_expression();
 
   while (true)
   {
+    // expression [ expression ]
     if (lookahead == '[')
     {
       match('[');
@@ -319,12 +282,14 @@ static void post_expression( )
       match(']');
       print("index");
     }
+    // | expression . id
     else if (lookahead == '.')
     {
       match('.');
       match(ID);
       print("dot");
     }
+    // | expression -> id
     else if (lookahead == ARROW)
     {
       match(ARROW);
@@ -335,11 +300,6 @@ static void post_expression( )
   }
 }
 
-/*
-  cast_expression             :=  general_expression
-                                | ( specifier pointers ) expression
-                                | ( expression )
- */
 static void cast_expression( )
 {
   general_expression();
@@ -348,6 +308,7 @@ static void cast_expression( )
   {
     match('(');
 
+    // | ( specifier pointers ) expression
     if (is_specifier())
     {
       match_specifier();
@@ -356,6 +317,7 @@ static void cast_expression( )
       expression();
       print("cast");
     }
+    // ( expression )
     else
     {
       expression();
@@ -364,24 +326,22 @@ static void cast_expression( )
   }
 }
 
-/*
-  general_expression          :=  id ( argument_list )
-                                | id ( )
-                                | id
-                                | num
- */
 static void general_expression( )
 {
+  // num
   if (lookahead == NUM)
     match(NUM);
+  // | id
   else if (lookahead == ID)
   {
     match(ID);
     
+    // | id ( )
     if (lookahead == '(')
     {
       match('(');
       
+      // | id ( argument-list )
       if (lookahead != ')')
         arguments();
 
@@ -394,14 +354,12 @@ static void general_expression( )
 
 // (START) - Functions
 
-/*
-  argument_list               :=  argument
-                                | argument , argument_list
- */
 static void arguments( )
 {
+  // argument
   argument();
 
+  // | argument , argument-list
   while (lookahead == ',')
   {
     match(',');
@@ -409,28 +367,25 @@ static void arguments( )
   }
 }
 
-/*
-  argument                    :=  string
-                                | expression
- */
 static void argument( )
 {
+  // string
   if (lookahead == STRING)
     match(STRING);
+  // | expression
   else
     expression();
 }
 
-/*
-  parameters                  :=  void
-                                | parameter_list
- */
 static void parameters( )
 {
+  // empty
   if (lookahead == ')')
     return;
+  // | void
   else if (lookahead == VOID)
     match(VOID);
+  // | parameter-list
   else
   {
     parameter();
@@ -443,51 +398,35 @@ static void parameters( )
   }
 }
 
-/*
-  parameter                   :=  specifier pointers id
- */
 static void parameter( )
 {
+  // specifier pointers id
   match_specifier();
   pointers();
   match(ID);
 }
 
-/*
-  pointers                    :=  empty
-                                | * pointers
- */
 static void pointers( )
 {
+  // empty
+
+  // | * pointers
   while (lookahead == '*')
     match('*');
 }
 
-// (END) - Functions
-
-// (START) - Translation unit
-
-/*
-  statements                  :=  empty
-                                | statement statements
- */
 static void statements( )
 {
+  // empty
+
+  // | statements (which end when the surrounding block ends with })
   while (lookahead != '}')
     statement();
 }
 
-/*
-  statement                   :=  { declarations statements }
-                                | return expression ;
-                                | while ( expression ) statement
-                                | if ( expression ) statement
-                                | if ( expression ) statement else statement
-                                | expression = expression;
-                                | expression ;
- */
 static void statement( )
 {
+  // { declarations statements }
   if (lookahead == '{')
   {
     match('{');
@@ -495,12 +434,14 @@ static void statement( )
     statements();
     match('}');
   }
+  // | return expression ;
   else if (lookahead == RETURN)
   {
     match(RETURN);
     expression();
     match(';');
   }
+  // | while ( expression ) statement
   else if (lookahead == WHILE)
   {
     match(WHILE);
@@ -509,6 +450,7 @@ static void statement( )
     match(')');
     statement();
   }
+  // | if ( expression ) statement
   else if (lookahead == IF)
   {
     match(IF);
@@ -517,6 +459,7 @@ static void statement( )
     match(')');
     statement();
 
+    // | if ( expression ) statement else statement 
     if (lookahead == ELSE)
     {
       match(ELSE);
@@ -525,8 +468,10 @@ static void statement( )
   }
   else
   {
+    // | expression ;
     expression();
 
+    // | expression = expression ;
     if (lookahead == '=')
     {
       match('=');
@@ -537,62 +482,43 @@ static void statement( )
   }
 }
 
-/*
-  declarations                :=  empty
-                                | declaration declarations
- */
 static void declarations( )
 {
+  // empty
+
+  // | declarations (each starts with specifier)
   while (is_specifier())
     declaration();
 }
 
-/*
-  declaration                 :=  specifier declarator_list ;
- */
 static void declaration( )
 {
-  int spec = match_specifier();
-  declarator(spec);
-
-  while (lookahead == ',')
-  {
-    match(',');
-    declarator(spec);
-  }
-
+  // specifier declarator-list ;
+  match_specifier();
+  declarators();
   match(';');
 }
 
-/*
-  declarator_list             :=  declarator
-                                | declarator , declarator_list
- */
 static void declarators( )
 {
-  if (lookahead == ';')
-    match(';');
-  else
-  {
-    while (lookahead == ',')
-    {
-      match(',');
-      global_declarator();
-    }
+  // declarator
+  declarator();
 
-    match(';');
+  // | declarator , declarator-list
+  while (lookahead == ',')
+  {
+    match(',');
+    declarator();
   }
 }
 
-/*
-  declarator                  :=  pointers id
-                                | pointers id [ num ]
- */
-static void declarator( int spec )
+static void declarator( )
 {
+  // pointers id
   pointers();
   match(ID);
 
+  // | pointers id [ num ]
   if (lookahead == '[')
   {
     match('[');
@@ -601,84 +527,96 @@ static void declarator( int spec )
   }
 }
 
-/*
-  global_declarator           :=  pointers id
-                                | pointers id ( )
-                                | pointers id [ num ]
- */
-static void global_declarator( )
+// (END) - Functions
+
+// (START) - Translation unit
+
+static void global_declaration( )
 {
+  // specifier global-declarator-list ;
+  // note ; handled within global_declarators()
+  match_specifier();
+  global_declarators();
+}
+
+static void global_declarators( )
+{
+  // global-declarator
+  const bool func = global_declarator();
+
+  // | global-declarator , global-declarator-list
+  while (lookahead == ',')
+  {
+    match(',');
+    global_declarator();
+  }
+
+  // global decls (not function defs) end with ;
+  if (!func)
+    match(';');
+}
+
+static bool global_declarator( )
+{
+  // pointers id
   pointers();
   match(ID);
 
+  // | pointers id ( ) 
   if (lookahead == '(')
   {
     match('(');
     
+    // | pointers id ( parameters )
     if (lookahead != ')')
-      arguments();
+      parameters();
 
     match(')');
+
+    // | pointers id ( parameters ) { declarations statements }
+    if (lookahead == '{')
+    {
+      match('{');
+      declarations();
+      statements();
+      match('}');
+      
+      return true; // indicate function decl, which does not end with ;
+    }
   }
+  // | pointers id [ num ]
   else if (lookahead == '[')
   {
     match('[');
     match(NUM);
     match(']');
   }
+
+  return false; // indicate global decl, which ends with ;
 }
 
-/*
-  translation_unit            :=  empty
-                                | struct id { declaration declarations } ; translation_unit
-                                | specifier global_declarator_list ;
-                                | specifier global_declarator ( parameters ) { declarations statements }
- */
 static void translation_unit( )
 {
+  // type-definition --> struct id { declarations } ;
   if (lookahead == STRUCT)
   {
     match(STRUCT);
     match(ID);
 
+    // optional: { declarations }
     if (lookahead == '{')
     {
       match('{');
       declarations();
       match('}');
-      match(';');
     }
+
+    match(';');
   }
+  // global-declaration | function-definition
+  // --> left-factored: specifier pointers [...]
   else
-  {
-    match_specifier();
-    pointers();
-    match(ID);
-
-    if (lookahead == '(')
-    {
-      match('(');
-      parameters();
-      match(')');
-
-      if (lookahead == '{')
-      {
-        match('{');
-        declarations();
-        statements();
-        match('}');
-      }
-      else 
-        declarators();
-    }
-    else if (lookahead == '[')
-    {
-      match('[');
-      match(NUM);
-      match(']');
-      declarators();
-    }
-  }
+    global_declaration();
 }
 
 // (END) - Translation unit
@@ -689,7 +627,7 @@ int main( void )
   lookahead = lexan(buffer);
 
   // read tokens until end of input stream
-  while (lookahead != DONE)
+  while (lookahead != DONE && lookahead != ERROR)
     translation_unit();
 
   return EXIT_SUCCESS;
