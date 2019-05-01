@@ -1,6 +1,7 @@
 slns/
 
 **/.DS_Store
+**/*.tar
 **/*.o
-**/scc
 **/*.dSYM/
+**/scc
