@@ -2,7 +2,7 @@ SOURCE = *
 TARGET = scc
 
 CC = g++
-CFLAGS = -std=c++11 -g -Wall
+CFLAGS = -g -Wall
 
 all: $(TARGET)
 

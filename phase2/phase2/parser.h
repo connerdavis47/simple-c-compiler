@@ -46,10 +46,9 @@ static void match( int );
  * Function: match_specifier( )
  * 
  * Description:
- *  Matches a valid specifier, then returns its type. For example,
- *  a valid return could be STRUCT or INT.
+ *  Matches a valid specifier.
  */
-static int match_specifier( );
+static void match_specifier( );
 
 /**
  * Function: print( std::string )

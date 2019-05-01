@@ -23,8 +23,8 @@ int numerrors, lineno = 1;
 
 /* Later, we will associate token values with each keyword */
 
-static set<string> keywords = {
-    "auto",
+string kw[] = { 
+  "auto",
     "break",
     "case",
     "char",
@@ -55,8 +55,9 @@ static set<string> keywords = {
     "unsigned",
     "void",
     "volatile",
-    "while",
+    "while" 
 };
+static set<string> keywords(kw, kw + sizeof(kw) / sizeof(kw[0]));
 
 
 /*

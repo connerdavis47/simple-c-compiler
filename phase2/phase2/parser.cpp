@@ -13,7 +13,6 @@
 using std::cout;
 using std::endl;
 using std::string;
-using std::to_string;
 
 /**
  * The next token's type, whose possible values are found in 
@@ -34,7 +33,6 @@ static void error( string msg )
 {
   report("Syntax error at token: %s", buffer);
   report("... %s", msg);
-  exit(EXIT_FAILURE);
 }
 
 static bool is_specifier( )
@@ -46,13 +44,9 @@ static void match( int token )
 {
   if (lookahead == token)
     lookahead = lexan(buffer);
-  else
-    error(
-      string("token mismatch - expected <") + to_string(token) + "> found <" + to_string(lookahead) + ">"
-    );
 }
 
-static int match_specifier( )
+static void match_specifier( )
 {
   int spec = lookahead;
 
@@ -66,11 +60,7 @@ static int match_specifier( )
      */
     if (spec == STRUCT)
       match(ID);
-
-    return spec;
   }
-  
-  return -1;
 }
 
 static void print( string output )
@@ -260,7 +250,7 @@ static void prefix_expression( )
   {
     match(SIZEOF);
     match('(');
-    prefix_expression();
+    expression();
     match(')');
     print("sizeof");
   }
@@ -601,7 +591,11 @@ static void translation_unit( )
   if (lookahead == STRUCT)
   {
     match(STRUCT);
-    match(ID);
+
+    if (lookahead == ID) {
+      pointers();
+      match(ID);
+    }
 
     // optional: { declarations }
     if (lookahead == '{')
@@ -630,5 +624,5 @@ int main( void )
   while (lookahead != DONE && lookahead != ERROR)
     translation_unit();
 
-  return EXIT_SUCCESS;
+  return 0;
 }
