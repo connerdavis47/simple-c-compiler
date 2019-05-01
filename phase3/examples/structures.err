@@ -1,0 +1,5 @@
+line 1: 'a' has incomplete type
+line 12: conflicting types for 'node'
+line 21: redefinition of 'foo'
+line 25: pointer type required for 'f'
+line 28: pointer type required for 'q'
