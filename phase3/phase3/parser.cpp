@@ -11,19 +11,19 @@
 
 # include "lexer.h"
 # include "tokens.h"
+# include "checker.h"
 # include "Scope.h"
 # include "Symbol.h"
 # include "Type.h"
-# include "checker.h"
 
-using namespace std;
+using std::string;
 
 static int lookahead;
 static string lexbuf;
+static string structName;
 
 static void expression();
 static void statement();
-
 
 /*
  * Function:	error
@@ -58,6 +58,12 @@ static void match(int t)
     lookahead = lexan(lexbuf);
 }
 
+
+/*
+ * Function:  grab
+ * 
+ * Description: Matches the next token, then returns a copy of it.
+ */
 static string grab(int t)
 {
   string cpy = lexbuf;
@@ -66,6 +72,13 @@ static string grab(int t)
   return cpy;
 }
 
+
+/*
+ * Function:  grabNumber
+ * 
+ * Description: Matches the next token, then returns a copy of it,
+ *    assuming the value is a positive integer.
+ */
 static unsigned grabNumber()
 {
   return strtoul(grab(NUM).c_str(), NULL, 0);
@@ -80,7 +93,7 @@ static unsigned grabNumber()
 
 static bool isSpecifier(int token)
 {
-    return token == INT || token == LONG || token == STRUCT;
+  return token == INT || token == LONG || token == STRUCT;
 }
 
 
@@ -111,7 +124,7 @@ static int specifier()
   }
 
   match(STRUCT);
-  match(ID);
+  structName = grab(ID);
   return STRUCT;
 }
 
@@ -153,16 +166,16 @@ static unsigned pointers()
 
 static void declarator(int spec)
 {
-  string name;
-  unsigned indirection;
-
-  indirection = pointers();
-  name = grab(ID);
+  const unsigned indirection = pointers();
+  const string name = grab(ID);
 
   if (lookahead == '[') 
   {
     match('[');
-    declareVariable(name, Type(spec, indirection, grabNumber()));
+
+    const unsigned length = grabNumber();
+    declareVariable(name, Type(spec, indirection, length));
+
     match(']');
   }
   else
@@ -187,9 +200,8 @@ static void declarator(int spec)
 
 static void declaration()
 {
-  int spec;
+  const int spec = specifier();
 
-  spec = specifier();
   declarator(spec);
 
   while (lookahead == ',') 
@@ -259,9 +271,6 @@ static void argument()
 
 static void primaryExpression(bool lparenMatched)
 {
-  string name;
-  Parameters* params;
-
   if (lparenMatched) 
   {
 	  expression();
@@ -273,7 +282,7 @@ static void primaryExpression(bool lparenMatched)
   } 
   else if (lookahead == ID) 
   {
-    name = grab(ID);
+    const string name = grab(ID);
 
 	  if (lookahead == '(') 
     {
@@ -291,10 +300,12 @@ static void primaryExpression(bool lparenMatched)
 	    }
 
 	    match(')');
-      checkFunction(name);
-	  }
-    else
-      checkIdentifier(name);
+    }
+
+    /*
+      The identifier must be declared in the current scope or in an enclosing scope [E4].
+     */
+    checkIdentifier(name);
   } 
   else error();
 }
@@ -638,10 +649,14 @@ static void statement()
   if (lookahead == '{') 
   {
     match('{');
+
+    /* The scope of the block begins before the declarations and persists until the end of the statements. */
     openScope();
     declarations();
     statements();
     closeScope();
+    /* and persists until the end of the statements. */
+
     match('}');
   } 
   else if (lookahead == RETURN) 
@@ -699,16 +714,11 @@ static void statement()
 
 static Type parameter()
 {
-  string name;
-  Type type;
-  int spec;
-  unsigned indirection;
-
-  spec = specifier();
-  indirection = pointers();
-  name = grab(ID);
-
-  type = Type(spec, indirection);
+  const int spec = specifier();
+  const unsigned indirection = pointers();
+  const string name = grab(ID);
+  
+  const Type type = Type(spec, indirection);
   declareVariable(name, type);
 
   return type;
@@ -732,36 +742,32 @@ static Type parameter()
 
 static Parameters* parameters()
 {
-  string name;
-  Type type;
-  int spec;
-  unsigned indirection;
-  Parameters *params;
-
-  params = new Parameters();
+  unsigned spec;
+  Parameters* params = new Parameters();
 
   if (lookahead == VOID)
   {
     spec = VOID;
-    match(VOID);
+	  match(VOID);
 
     if (lookahead == ')')
       return params;
   }
-  else 
+  else
     spec = specifier();
 
-  indirection = pointers();
-  name = grab(ID);
-  
-  type = Type(spec, indirection);
+  const unsigned indirection = pointers();
+  const string name = grab(ID);
+
+  const Type type = Type(spec, indirection);
+  /* Each parameter is declared in the current scope */
   declareVariable(name, type);
   params->push_back(type);
 
   while (lookahead == ',') 
   {
-    match(',');
-    params->push_back(parameter());  
+      match(',');
+      params->push_back(parameter());
   }
 
   return params;
@@ -783,23 +789,26 @@ static Parameters* parameters()
 
 static void globalDeclarator(int spec)
 {
-  string name;
-  unsigned indirection;
-
-  indirection = pointers();
-  name = grab(ID);
+  const unsigned indirection = pointers();
+  const string name = grab(ID);
 
   if (lookahead == '(') 
   {
 	  match('(');
-    declareFunction(name, Type(spec, indirection, parameters()));
+
+    Parameters* params = parameters();
+    declareFunction(name, Type(spec, indirection, params));
     closeScope();
+
 	  match(')');
   } 
   else if (lookahead == '[') 
   {
     match('[');
-    declareVariable(name, Type(spec, indirection, grabNumber()));
+
+    const unsigned length = grabNumber();
+    declareVariable(name, Type(spec, indirection, length));
+
     match(']');
   }
   else
@@ -844,58 +853,82 @@ static void remainingDeclarators(int spec)
 
 static void globalOrFunction()
 {
-  string name;
-  int spec;
-  unsigned indirection;
   Parameters* params = new Parameters();
-
-  spec = specifier();
+  const unsigned spec = specifier();
 
   if (spec == STRUCT && lookahead == '{') 
   {
+    defineStruct(structName);
+
     match('{');
+
+    /* The scope of the structure begins immediately before the first declaration */
+    openScope();
     declaration();
     declarations();
+    closeScope();
+    /* and persists until immediately after the declarations */
+    /* at which point the type definition is considered complete. */
+
     match('}');
     match(';');
   } 
   else 
   {
-    indirection = pointers();
-    name = grab(ID);
+    const unsigned indirection = pointers();
+    const string name = grab(ID);
+
+    if (spec == STRUCT && indirection == 0)
+      checkStruct(structName, name);
 
     if (lookahead == '[') 
     {
       match('[');
-      declareVariable(name, Type(spec, indirection, grabNumber()));
+
+      const unsigned length = grabNumber();
+      declareVariable(name, Type(spec, indirection, length));
+
       match(']');
+
       remainingDeclarators(spec);
     } 
-    else if (lookahead == '(') 
+    else if (lookahead == '(')
     {
+      /* The function is both declared and defined in the current translation unit. */
       match('(');
+      
+      if (lookahead == ')')
+      {
+        if (spec == STRUCT)
+          declareStruct(name, Type(spec, indirection, params), structName);
+        else
+          declareFunction(name, Type(spec, indirection, params));
 
-      if (lookahead == ')') 
+        match(')');
+
+        remainingDeclarators(spec);
+      }
+      else
       {
-        declareFunction(name, Type(spec, indirection, params));        
-		    match(')');
-		    remainingDeclarators(spec);
-	    } 
-      else 
-      {
-        defineFunction(name, Type(spec, indirection, params));
+        /* The scope of the function begins immediately after the identifier */
         openScope();
-        params = parameters();
+        Parameters* params = parameters();
+        defineFunction(name, Type(spec, indirection, params));
+
         match(')');
         match('{');
+
         declarations();
         statements();
         closeScope();
+        /* and persists until the end of statements. */
+
         match('}');
 	    }
     } 
     else
     {
+      /* Each variable is declared in the current scope. */
       declareVariable(name, Type(spec, indirection));
       remainingDeclarators(spec);
     }
