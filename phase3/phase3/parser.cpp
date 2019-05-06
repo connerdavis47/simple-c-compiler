@@ -743,7 +743,6 @@ static Type parameter()
 static Parameters* parameters()
 {
   unsigned spec;
-  Parameters* params = new Parameters();
 
   if (lookahead == VOID)
   {
@@ -751,11 +750,14 @@ static Parameters* parameters()
 	  match(VOID);
 
     if (lookahead == ')')
-      return params;
+      return nullptr;
   }
+  else if (lookahead == ')')
+    return nullptr;
   else
     spec = specifier();
 
+  Parameters* params = new Parameters();
   const unsigned indirection = pointers();
   const string name = grab(ID);
 
@@ -796,9 +798,9 @@ static void globalDeclarator(int spec)
   {
 	  match('(');
 
+    // set parameters to nullptr as we are "ignoring any parameters.", for now
     Parameters* params = parameters();
     declareFunction(name, Type(spec, indirection, params));
-    closeScope();
 
 	  match(')');
   } 
@@ -899,6 +901,8 @@ static void globalOrFunction()
       
       if (lookahead == ')')
       {
+        params = nullptr;
+        
         if (spec == STRUCT)
           declareStruct(name, Type(spec, indirection, params), structName);
         else
@@ -912,6 +916,7 @@ static void globalOrFunction()
       {
         /* The scope of the function begins immediately after the identifier */
         openScope();
+
         Parameters* params = parameters();
         defineFunction(name, Type(spec, indirection, params));
 

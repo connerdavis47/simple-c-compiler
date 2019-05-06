@@ -146,16 +146,11 @@ Symbol* declareFunction( const string& name, const Type& type )
 
   /* and any previous declaration must be identical [E2] */
   else if (type != symbol->type())
-  {
     report(conflicting, name);
 
-    /* ignoring any parameters */
-    delete type.parameters();
-  }
-
-  /* The function must not have been previous defined [E1] */
-  else
-    report(redefined, name);
+  /* and we cannot redeclare a function outside the global scope */
+  else if (activeScope != topLevel)
+    report(redeclared, name);
 
   return symbol;
 }
