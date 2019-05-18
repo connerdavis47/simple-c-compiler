@@ -519,6 +519,17 @@ Type checkSizeof( const Type& expr )
     report(invalidSizeof);
     return error;
 }
+Type checkTypeCast( const Type& left, const Type& right )
+{
+    const Type t1 = left.promote();
+    const Type t2 = right.promote();
+
+    if ((t1.isNumeric() && t2.isNumeric()) || (t1.isPointer() && t2.isPointer()))
+        return t1;
+
+    report(invalidCast);
+    return error;
+}
 
 
 Type checkArray( const Type& left, const Type& right ) 

@@ -426,7 +426,6 @@ static Type prefixExpression()
 		expr = expression();
 		expr = checkSizeof(expr);
 		match(')');
-
     } 
 	else if (lookahead == '(') 
 	{
@@ -434,10 +433,11 @@ static Type prefixExpression()
 
 		if (isSpecifier(lookahead)) 
 		{
-			specifier();
-			pointers();
+			const string typespec = specifier();
+			const unsigned ptrs = pointers();
 			match(')');
-			prefixExpression();
+			const Type right = prefixExpression();
+			checkTypeCast(Type(typespec, ptrs), right);
 		}
 		else 
 			expr = postfixExpression(true);
@@ -691,7 +691,7 @@ static Type expression()
 static void statements()
 {
     while (lookahead != '}')
-	statement();
+		statement();
 }
 
 
@@ -723,7 +723,6 @@ static void statement()
 		statements();
 		closeScope();
 		match('}');
-
     } 
 	else if (lookahead == RETURN) 
 	{

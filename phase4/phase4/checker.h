@@ -54,6 +54,7 @@ Type checkNot( const Type& expr );
 Type checkAddress( const Type& expr );
 Type checkDereference( const Type& expr );
 Type checkSizeof( const Type& expr );
+Type checkTypeCast( const Type& left, const Type& right );
 
 Type checkArray( const Type& left, const Type& right );
 Type checkStructField( const Type& left, const Type& right );
