@@ -456,10 +456,16 @@ Type checkSubtract( const Type& left, const Type& right )
 
     if (t1.isPointer() && t2.isPointer())
     {
-        if (t1 == t2 && !isIncompletePointer(t1) && !isIncompletePointer(t2))
-            return longinteger;
+        if (t1 == t2)
+        {
+            if (!isIncompletePointer(t1) && !isIncompletePointer(t2))
+                return longinteger;
 
-        report(ptrIncomplete);
+            report(ptrIncomplete);
+            return error;
+        }
+        
+        report(invalidBinary, "-");
         return error;
     }
 
