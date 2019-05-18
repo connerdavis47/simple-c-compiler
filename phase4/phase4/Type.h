@@ -61,7 +61,6 @@ public:
 
     bool isStruct() const;
 
-    bool isLvalue() const;
     bool isNumeric() const;
     bool isPointer() const;
     bool isScalar() const;

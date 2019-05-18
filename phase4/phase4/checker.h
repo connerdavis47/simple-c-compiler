@@ -26,7 +26,7 @@ Symbol *checkIdentifier(const std::string& name);
 
 Type checkReturn( const Type& expr, const Type& type );
 Type checkTest( const Type& expr );
-Type checkAssignment( const Type& left, const Type& right );
+Type checkAssignment( const Type& left, const Type& right, const bool& lvalue );
 
 Type checkLogical( const Type& left, const Type& right, const std::string& op );
 Type checkLogicalAnd( const Type& left, const Type& right );
@@ -53,7 +53,7 @@ Type checkRemainder( const Type& left, const Type& right );
 
 Type checkNegate( const Type& expr );
 Type checkNot( const Type& expr );
-Type checkAddress( const Type& expr );
+Type checkAddress( const Type& expr, const bool& lvalue );
 Type checkDereference( const Type& expr );
 Type checkSizeof( const Type& expr );
 Type checkTypeCast( const Type& left, const Type& right );

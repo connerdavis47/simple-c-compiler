@@ -17,6 +17,8 @@
 # include "Scope.h"
 # include "Type.h"
 
+using std::cout;
+using std::endl;
 using std::map;
 using std::string;
 
@@ -309,12 +311,12 @@ Type checkTest( const Type& expr )
     report(invalidTest);
     return error;
 }
-Type checkAssignment( const Type& left, const Type& right ) 
+Type checkAssignment( const Type& left, const Type& right, const bool& lvalue ) 
 { 
     if (left.isError() || right.isError())
         return error;
 
-    if (left.isLvalue())
+    if (lvalue)
     {
         if (left == right)
             return left;
@@ -488,12 +490,12 @@ Type checkNot( const Type& expr )
     report(invalidUnary, "!");
     return error;
 }
-Type checkAddress( const Type& expr ) 
+Type checkAddress( const Type& expr, const bool& lvalue ) 
 {
     if (expr.isError())
         return error;
 
-    if (expr.isLvalue())
+    if (lvalue)
         return Type(expr.specifier(), expr.indirection() + 1);
 
     report(lvalueRequired);
@@ -531,6 +533,9 @@ Type checkSizeof( const Type& expr )
 }
 Type checkTypeCast( const Type& left, const Type& right )
 {
+    if (left.isError() || right.isError())
+        return error;
+
     const Type t1 = left.promote();
     const Type t2 = right.promote();
 
@@ -544,6 +549,9 @@ Type checkTypeCast( const Type& left, const Type& right )
 
 Type checkArray( const Type& left, const Type& right ) 
 { 
+    if (left.isError() || right.isError())
+        return error;
+
     const Type t1 = left.promote();
 
     if (t1.isPointer())
@@ -557,19 +565,25 @@ Type checkArray( const Type& left, const Type& right )
             return error;
         }
 
-        report(invalidUnary, "[]");
+        report(invalidBinary, "[]");
         return error;
     }
 
-    report(invalidUnary, "[]");
+    report(invalidBinary, "[]");
     return error;
 }
 Type checkStructField( const Type& left, const Type& right ) 
 { 
+    if (left.isError() || right.isError())
+        return error;
+
     return left;
 }
 Type checkStructPointerField( const Type& left, const Type& right ) 
 { 
+    if (left.isError() || right.isError())
+        return error;
+
     return left;
 }
 
