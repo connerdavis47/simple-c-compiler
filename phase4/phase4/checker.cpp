@@ -37,16 +37,16 @@ static string conflicting = "conflicting types for '%s'";
 static string incomplete = "'%s' has incomplete type";
 static string nonpointer = "pointer type required for '%s'";
 
-static string invalidReturn = "invalid return type";                    // E1
-static string invalidTest = "invalid type for test expression";         // E2
-static string lvalueRequired = "lvalue required in expression";         // E3
-static string invalidBinary = "invalid operands to binary %s";          // E4
-static string invalidUnary = "invalid operand to unary %s";             // E5
-static string invalidCast = "invalid operand in cast expression";       // E6
-static string invalidSizeof = "invalid operand in sizeof expression";   // E7
-static string funcRequired = "called object is not a function";         // E8
-static string invalidArgs = "invalid arguments to called function";     // E9
-static string ptrIncomplete = "using pointer to incomplete type";       // E10
+static string invalid_return = "invalid return type";                    // E1
+static string invalid_test = "invalid type for test expression";         // E2
+static string expected_lvalue = "lvalue required in expression";         // E3
+static string invalid_binary = "invalid operands to binary %s";          // E4
+static string invalid_unary = "invalid operand to unary %s";             // E5
+static string invalid_cast = "invalid operand in cast expression";       // E6
+static string invalid_sizeof = "invalid operand in sizeof expression";   // E7
+static string expected_func = "called object is not a function";         // E8
+static string invalid_args = "invalid arguments to called function";     // E9
+static string invalid_ptr = "using pointer to incomplete type";       // E10
 
 /*
  * Function:	checkIfComplete
@@ -159,9 +159,9 @@ void closeStruct( const string& name )
  *		declaration.
  */
 
-Symbol *defineFunction( const string& name, const Type& type )
+Symbol* defineFunction( const string& name, const Type& type )
 {
-    Symbol *symbol = outermost->find(name);
+    Symbol* symbol = outermost->find(name);
 
     if (symbol != nullptr) 
     {
@@ -193,9 +193,9 @@ Symbol *defineFunction( const string& name, const Type& type )
  *		redeclaration is discarded.
  */
 
-Symbol *declareFunction( const string& name, const Type& type )
+Symbol* declareFunction( const string& name, const Type& type )
 {
-    Symbol *symbol = outermost->find(name);
+    Symbol* symbol = outermost->find(name);
 
     if (symbol == nullptr) 
     {
@@ -221,7 +221,7 @@ Symbol *declareFunction( const string& name, const Type& type )
  *		cannot be a structure type.
  */
 
-Symbol *declareParameter( const string& name, const Type& type )
+Symbol* declareParameter( const string& name, const Type& type )
 {
     return declareVariable(name, checkIfStructure(name, type));
 }
@@ -234,7 +234,7 @@ Symbol *declareParameter( const string& name, const Type& type )
  *		redeclaration is discarded.
  */
 
-Symbol *declareVariable( const string& name, const Type& type )
+Symbol* declareVariable( const string& name, const Type& type )
 {
     Symbol *symbol = toplevel->find(name);
 
@@ -261,7 +261,7 @@ Symbol *declareVariable( const string& name, const Type& type )
  *		future error messages.
  */
 
-Symbol *checkIdentifier( const string& name )
+Symbol* checkIdentifier( const string& name )
 {
     Symbol *symbol = toplevel->lookup(name);
 
@@ -276,16 +276,24 @@ Symbol *checkIdentifier( const string& name )
 }
 
 
-static bool isIncompletePointer( const Type& t )
+/**
+ * A pointer is complete if it refers to a structure that has previously been
+ * defined. Otherwise, the pointer is considered incomplete.
+ */
+static bool isCompletePointer( const Type& t )
 {
-  return t.isStruct() && t.indirection() == 1 && fields.count(t.specifier()) == 0;
+  return !(t.isStruct() && t.indirection() == 1 && fields.count(t.specifier()) == 0);
 }
 
 
-static bool coerceIntToLong( const Type& t1, const Type& t2)
+/**
+ * The result has type long if either operand has type long, and has type 
+ * int otherwise.
+ */
+static Type coerceIntToLong( const Type& left, const Type& right )
 {
-    return t1.isNumeric() && t2.isNumeric()
-        && (t1.specifier() == "long" || t2.specifier() == "long");
+    return (left.specifier() == "long" || right.specifier() == "long") 
+        ? longinteger : integer;
 }
 
 
@@ -294,10 +302,13 @@ Type checkReturn( const Type& expr, const Type& type )
     if (expr.isError() || type.isError())
         return error;
 
-    if (expr == type)
+    // The type of the expression in a return statement must be compatible with the 
+    // return type of the enclosing function
+    if (expr.isCompatibleWith(type))
         return expr;
 
-    report(invalidReturn);
+    // [E1]
+    report(invalid_return);
     return error;
 }
 Type checkTest( const Type& expr )
@@ -305,10 +316,12 @@ Type checkTest( const Type& expr )
     if (expr.isError())
         return error;
 
+    // The type of an expression in a while or if statement must be a scalar type
     if (expr.isScalar())
         return expr;
 
-    report(invalidTest);
+    // [E2]
+    report(invalid_test);
     return error;
 }
 Type checkAssignment( const Type& left, const Type& right, const bool& lvalue ) 
@@ -316,19 +329,20 @@ Type checkAssignment( const Type& left, const Type& right, const bool& lvalue )
     if (left.isError() || right.isError())
         return error;
 
+    // In an assignment statement, the left-hand side must be an lvalue
     if (lvalue)
     {
-        if (left == right)
+        // and the types of the left-hand and right-hand sides must be compatible 
+        if (left.isCompatibleWith(right))
             return left;
 
-        else if (coerceIntToLong(left, right))
-            return longinteger;
-
-        report(invalidBinary, "=");
+        // [E4]
+        report(invalid_binary, "=");
         return error;
     }
 
-    report(lvalueRequired);
+    // [E3]
+    report(expected_lvalue);
     return error;
 }
 
@@ -338,10 +352,13 @@ Type checkLogical( const Type& left, const Type& right, const std::string& op )
     if (left.isError() || right.isError())
         return error;
         
+    // The type of each operand must be a scalar type
+    // The types of the two operands need not be compatible.
     if (left.isScalar() && right.isScalar())
-        return integer;
+        return integer; /* The result has type int and is not an lvalue */
 
-    report(invalidBinary, op);
+    // [E4]
+    report(invalid_binary, op);
     return error;
 }
 Type checkLogicalAnd( const Type& left, const Type& right ) 
@@ -359,13 +376,12 @@ Type checkEquality( const Type& left, const Type& right, const std::string& op )
     if (left.isError() || right.isError())
         return error;
         
-    if (left == right)
-        return integer;
+    // The types of the left and right operands must be compatible
+    if (left.isCompatibleWith(right))
+        return integer; /* The result has type int and is not an lvalue */
 
-    else if (coerceIntToLong(left, right))
-        return longinteger;
-
-    report(invalidBinary, op);
+    // [E4]
+    report(invalid_binary, op);
     return error;
 }
 Type checkEqual( const Type& left, const Type& right ) 
@@ -383,13 +399,12 @@ Type checkRelational( const Type& left, const Type& right, const std::string& op
     if (left.isError() || right.isError())
         return error;
         
-    if (left == right)
-        return integer;
+    // The types of the left and right operands must be compatible
+    if (left.isCompatibleWith(right))
+        return integer; /* The result has type int and is not an lvalue */
 
-    else if (coerceIntToLong(left, right))
-        return longinteger;
-
-    report(invalidBinary, op);
+    // [E4]
+    report(invalid_binary, op);
     return error;
 }
 Type checkLessOrEqual( const Type& left, const Type& right ) 
@@ -412,19 +427,27 @@ Type checkGreaterThan( const Type& left, const Type& right )
 
 Type checkAdditive( const Type& left, const Type& right, const std::string& op ) 
 { 
+    // If the types of both operands are numeric, then the result has type long 
+    // if either operand has type long, and has type int otherwise.
     if (left.isNumeric() && right.isNumeric())
-        return coerceIntToLong(left, right) ? longinteger : integer;
+        return coerceIntToLong(left, right);
 
+    // If the left operand has type “pointer to T” and the right operand has a 
+    // numeric type
     if (left.isPointer() && right.isNumeric())
     {
-        if (!isIncompletePointer(left))
-            return left;
+        // Additionally, if any operand has type “pointer to T” then T must be 
+        // complete.
+        if (isCompletePointer(left))
+            return left; /* then the result has type “pointer to T.” */
 
-        report(ptrIncomplete);
+        // [E10]
+        report(invalid_ptr);
         return error;
     }
 
-    report(invalidBinary, op);
+    // [E4]
+    report(invalid_binary, op);
     return error;
 }
 Type checkAdd( const Type& left, const Type& right ) 
@@ -432,15 +455,21 @@ Type checkAdd( const Type& left, const Type& right )
     if (left.isError() || right.isError())
         return error;
 
+    // In all cases, operands undergo type promotion
     const Type t1 = left.promote();
     const Type t2 = right.promote();
 
+    // For addition only, if the left operand has a numeric type and the right 
+    // operand has type “pointer to T”
     if (t1.isNumeric() && t2.isPointer())
     {
-        if (!isIncompletePointer(t2))
-            return t2;
+        // Additionally, if any operand has type “pointer to T” then T must be 
+        // complete.
+        if (isCompletePointer(t2))
+            return t2; /* then the result has type “pointer to T.” */
 
-        report(ptrIncomplete);
+        // [E10]
+        report(invalid_ptr);
         return error;
     }
 
@@ -451,21 +480,28 @@ Type checkSubtract( const Type& left, const Type& right )
     if (left.isError() || right.isError())
         return error;
 
+    // In all cases, operands undergo type promotion
     const Type t1 = left.promote();
     const Type t2 = right.promote();
 
+    // For subtraction only, if both operands have type “pointer to T”
     if (t1.isPointer() && t2.isPointer())
     {
-        if (t1 == t2)
+        // Additionally, if any operand has type “pointer to T” then T must be 
+        // complete.
+        if (isCompletePointer(t1) && isCompletePointer(t2))
         {
-            if (!isIncompletePointer(t1) && !isIncompletePointer(t2))
-                return longinteger;
 
-            report(ptrIncomplete);
+            if (t1.isCompatibleWith(t2))
+                return longinteger; /* then the result has type long. */
+
+            // [E4]
+            report(invalid_binary, "-");
             return error;
         }
-        
-        report(invalidBinary, "-");
+
+        // [E10]
+        report(invalid_ptr);
         return error;
     }
 
@@ -475,10 +511,14 @@ Type checkSubtract( const Type& left, const Type& right )
 
 Type checkMultiplicative( const Type& left, const Type& right, const std::string& op ) 
 { 
+    // The types of both operands must be numeric
+    // If either operand has type long, then the result has type long. Otherwise, 
+    // the result has type int.
     if (left.isNumeric() && right.isNumeric())
-        return coerceIntToLong(left, right) ? longinteger : integer;
+        return coerceIntToLong(left, right);
 
-    report(invalidBinary, op);
+    // [E4]
+    report(invalid_binary, op);
     return error;
 }
 Type checkMultiply( const Type& left, const Type& right ) 
@@ -500,18 +540,22 @@ Type checkNegate( const Type& expr )
     if (expr.isError())
         return error;
         
+    // The operand in a unary - expression must have a numeric type
     if (expr.isNumeric())
-        return expr;
+        return expr; /* and the result has the same type */
 
-    report(invalidUnary, "-");
+    // [E5]
+    report(invalid_unary, "-");
     return error;
 }
 Type checkNot( const Type& expr ) 
 { 
+    // The operand in a ! expression must have a scalar type
     if (expr.isScalar())
-        return integer;
+        return integer; /* and the result has type int */
 
-    report(invalidUnary, "!");
+    // [E5]
+    report(invalid_unary, "!");
     return error;
 }
 Type checkAddress( const Type& expr, const bool& lvalue ) 
@@ -519,10 +563,14 @@ Type checkAddress( const Type& expr, const bool& lvalue )
     if (expr.isError())
         return error;
 
+    // The operand in a unary & expression must be an lvalue
+    // If the operand has type T, then the result has type “pointer to T” and is 
+    // not an lvalue.
     if (lvalue)
         return Type(expr.specifier(), expr.indirection() + 1);
 
-    report(lvalueRequired);
+    // [E3]
+    report(expected_lvalue);
     return error;
 }
 Type checkDereference( const Type& expr )
@@ -530,18 +578,23 @@ Type checkDereference( const Type& expr )
     if (expr.isError())
         return error;
 
+    // after any promotion
     const Type t1 = expr.promote();
 
+    // The operand in a unary * expression must have type “pointer to T” 
     if (t1.isPointer())
     {
-        if (!isIncompletePointer(t1))
-            return Type(t1.specifier());
+        // and T must be complete
+        if (isCompletePointer(t1))
+            return Type(t1.specifier()); /* The result has type T and is an lvalue. */
 
-        report(ptrIncomplete);
+        // [E10]
+        report(invalid_ptr);
         return error;
     }
 
-    report(invalidUnary, "*");
+    // [E5]
+    report(invalid_unary, "*");
     return error;
 }
 Type checkSizeof( const Type& expr ) 
@@ -549,10 +602,12 @@ Type checkSizeof( const Type& expr )
     if (expr.isError())
         return error;
 
+    // The operand of a sizeof expression must not have a function type
     if (!expr.isFunction())
-        return longinteger;
+        return longinteger; /* The result of the expression has type long */
 
-    report(invalidSizeof);
+    // [E7]
+    report(invalid_sizeof);
     return error;
 }
 Type checkTypeCast( const Type& left, const Type& right )
@@ -560,22 +615,27 @@ Type checkTypeCast( const Type& left, const Type& right )
     if (left.isError() || right.isError())
         return error;
 
+    // (after any promotion) 
     const Type t1 = left.promote();
     const Type t2 = right.promote();
 
+    // The types of the result and operand must either both be numeric 
     if ((t1.isNumeric() && t2.isNumeric()))
         return t1;
         
+    // or both be pointer types
     if (t1.isPointer() && t2.isPointer())
     {
-        if (!isIncompletePointer(t1) && !isIncompletePointer(t2))
-            return t1;
+        if (isCompletePointer(t1) && isCompletePointer(t2))
+            return t1; /* The result is not an lvalue. */
 
-        report(ptrIncomplete);
+        // [E10]
+        report(invalid_ptr);
         return error;
     }
 
-    report(invalidCast);
+    // [E6]
+    report(invalid_cast);
     return error;
 }
 
@@ -585,24 +645,33 @@ Type checkArray( const Type& left, const Type& right )
     if (left.isError() || right.isError())
         return error;
 
+    // after any promotion
     const Type t1 = left.promote();
 
+    // The left operand in an array reference expression must have type 
+    // “pointer to T”
     if (t1.isPointer())
     {
+        // the expression must have a numeric type
         if (right.isNumeric())
         {
-            if (!isIncompletePointer(t1))
+            // and T must be complete
+            // The result has type T and is an lvalue.
+            if (isCompletePointer(t1))
                 return Type(t1.specifier(), t1.indirection() - 1);
 
-            report(ptrIncomplete);
+            // [E10]
+            report(invalid_ptr);
             return error;
         }
 
-        report(invalidBinary, "[]");
+        // [E4]
+        report(invalid_binary, "[]");
         return error;
     }
 
-    report(invalidBinary, "[]");
+    // [E4]
+    report(invalid_binary, "[]");
     return error;
 }
 Type checkStructField( const Type& type, const string field ) 
@@ -610,31 +679,30 @@ Type checkStructField( const Type& type, const string field )
     if (type.isError())
         return error;
 
-    /*
-        The operand in a direct structure field reference must be a structure type and the identifier must be a field of
-the structure [E4], in which case the type of the expression is the type of the identifier. The result is an lvalue if the
-expression is an lvalue and if the type of the identifier is not an array type.
-     */
-
+    // The operand in a direct structure field reference must be a structure type
     if (type.isStruct())
     {
+        // and the identifier must be a field of the structure
         if (fields.find(type.specifier()) != fields.end())
         {
+            // in which case the type of the expression is the type of the identifier.
             const Symbols typeFields = fields.find(type.specifier())->second->symbols();
-
             for (unsigned i = 0; i < typeFields.size(); ++i)
                 if (typeFields[i]->name() == field)
                     return typeFields[i]->type();
 
-            report(invalidBinary, ".");
+            // [E4]
+            report(invalid_binary, ".");
             return error;
         }
 
-        report(invalidBinary, ".");
+        // [E4]
+        report(invalid_binary, ".");
         return error;
     }
 
-    report(invalidBinary, ".");
+    // [E4]
+    report(invalid_binary, ".");
     return error;
 }
 Type checkStructPointerField( const Type& left, const string field ) 
@@ -642,36 +710,38 @@ Type checkStructPointerField( const Type& left, const string field )
     if (left.isError())
         return error;
 
-    /*
-        The operand in an indirect structure field reference must be a pointer to a structure type (after any promotion),
-the structure type must be complete [E10], and the identifier must be a field of the structure [E4], in which case the
-type of the expression is the type of the identifier. The result is an lvalue if the type of the expression is not an array
-type.
-     */
+    // (after any promotion)
     const Type t1 = left.promote();
 
+    // The operand in an indirect structure field reference must be a pointer to a 
+    // structure type
     if (t1.isPointer() && t1.isStruct())
     {
-        if (!isIncompletePointer(t1))
+        // the structure type must be complete
+        if (isCompletePointer(t1))
         {
+            // and the identifier must be a field of the structure
             if (fields.find(t1.specifier()) != fields.end())
             {
+                // in which case the type of the expression is the type of the identifier.
                 const Symbols typeFields = fields.find(t1.specifier())->second->symbols();
-
                 for (unsigned i = 0; i < typeFields.size(); ++i)
                     if (typeFields[i]->name() == field)
                         return typeFields[i]->type();
             }
 
-            report(invalidBinary, "->");
+            // [E4]
+            report(invalid_binary, "->");
             return error;
         }
 
-        report(ptrIncomplete);
+        // [E10]
+        report(invalid_ptr);
         return error;
     }
 
-    report(invalidBinary, "->");
+    // [E4]
+    report(invalid_binary, "->");
     return error;
 }
 
@@ -689,38 +759,48 @@ Type checkFunction( const string& name, Parameters& args )
     Symbol* symbol = toplevel->lookup(name); 
     if (symbol == nullptr)
     {
-        report(funcRequired);
+        report(expected_func);
         return error;
     }
 
+    // The identifier in a function call expression must have type “function returning T"
     Type t1 = symbol->type();
     if (!t1.isFunction())
     {
-        report(funcRequired);
+        // [E8]
+        report(expected_func);
         return error;
     }
 
+
+    // if the parameters have been specified 
     Parameters* params = t1.parameters();
     if (params != nullptr)
     {
+        // the number of parameters and arguments must agree 
         if (params->size() != args.size())
         {
-            report(invalidArgs);
+            report(invalid_args);
             return error;
         }
 
         for (unsigned i = 0; i < args.size(); ++i)
         {
+            // Arguments always undergo type promotion.
             const Type type1 = (*params)[i];
             const Type type2 = args[i].promote();
 
-            if (type1 != type2 && !coerceIntToLong(type1, type2))
+            // the arguments must all have scalar types,
+            // and their types must be compatible
+            if (!type1.isCompatibleWith(type2) || !type1.isScalar() || !type2.isScalar())
             {
-                report(invalidArgs);
+                // [E9]
+                report(invalid_args);
                 return error;
             }
         }
     }
 
+    // the result has type T
     return Type(t1.specifier(), t1.indirection());
 }
