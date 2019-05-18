@@ -236,6 +236,12 @@ bool Type::isStruct() const
     return _kind != ERROR && _specifier != "int" && _specifier != "long";
 }
 
+
+bool Type::isLvalue() const
+{
+    return isSimple();
+}
+
 bool Type::isNumeric() const // ("int", 0, SIMPLE) or ("long", 0, SIMPLE)
 {
   if (_kind != SIMPLE || _indirection > 0)

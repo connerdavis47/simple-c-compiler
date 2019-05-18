@@ -16,14 +16,15 @@
 # include "Scope.h"
 # include "Type.h"
 
+
 using namespace std;
+
+static map<string,Scope *> fields;
+static Scope *outermost, *toplevel;
 
 static const Type error;
 static const Type integer("int");
 static const Type longinteger("long");
-
-static map<string,Scope *> fields;
-static Scope *outermost, *toplevel;
 
 static string undeclared = "'%s' undeclared";
 static string redefined = "redefinition of '%s'";
@@ -33,15 +34,15 @@ static string incomplete = "'%s' has incomplete type";
 static string nonpointer = "pointer type required for '%s'";
 
 static string invalidReturn = "invalid return type";                    // E1
-static string invalidType = "invalid type for test expression";         // E2
-static string reqLvalue = "lvalue required in expression";              // E3
+static string invalidTest = "invalid type for test expression";         // E2
+static string lvalueRequired = "lvalue required in expression";              // E3
 static string invalidBinary = "invalid operands to binary %s";          // E4
-static string invalidUnary = "invalid operands to unary %s";            // E5
+static string invalidUnary = "invalid operand to unary %s";            // E5
 static string invalidCast = "invalid operand in cast expression";       // E6
 static string invalidSizeof = "invalid operand in sizeof expression";   // E7
-static string notFunc = "called object is not a function";              // E8
+static string funcRequired = "called object is not a function";              // E8
 static string invalidArgs = "invalid arguments to called function";     // E9
-static string incompletePtr = "using pointer to incomplete type";       // E10
+static string ptrIncomplete = "using pointer to incomplete type";       // E10
 
 /*
  * Function:	checkIfComplete
@@ -51,17 +52,16 @@ static string incompletePtr = "using pointer to incomplete type";       // E10
  *		fields have been defined.
  */
 
-static 
-Type checkIfComplete(const string& name, const Type& type)
+static Type checkIfComplete(const string &name, const Type &type)
 {
-  if (!type.isStruct() || type.indirection() > 0)
-	  return type;
+    if (!type.isStruct() || type.indirection() > 0)
+	return type;
 
-  if (fields.count(type.specifier()) > 0)
-	  return type;
+    if (fields.count(type.specifier()) > 0)
+	return type;
 
-  report(incomplete, name);
-  return error;
+    report(incomplete, name);
+    return error;
 }
 
 
@@ -71,26 +71,13 @@ Type checkIfComplete(const string& name, const Type& type)
  * Description:	Check if the given type is a structure.
  */
 
-static 
-Type checkIfStructure(const string &name, const Type &type)
+static Type checkIfStructure(const string &name, const Type &type)
 {
-  if (!type.isStruct() || type.indirection() > 0)
-	  return type;
+    if (!type.isStruct() || type.indirection() > 0)
+	return type;
 
-  report(nonpointer, name);
-  return type;
-}
-
-static 
-bool isIncompletePointer(const Type& t)
-{
-  return t.isStruct() && t.indirection() == 1 && fields.count(t.specifier()) == 0;
-}
-
-static 
-bool isLvalue(const Type& t)
-{
-  return t.isScalar();
+    report(nonpointer, name);
+    return type;
 }
 
 
@@ -277,290 +264,330 @@ Symbol *checkIdentifier(const string &name)
 }
 
 
-Type checkAssignment( const Type& left, const Type& right )
+static bool isIncompletePointer(const Type& t)
 {
-  const Type t1 = left;
-  const Type t2 = right.promote();
+  return t.isStruct() && t.indirection() == 1 && fields.count(t.specifier()) == 0;
+}
 
-  if (isLvalue(t1))
-  {
-    if (t1 == t2)
-      return t1;
 
-    report(reqLvalue);
+Type checkReturn( const Type& expr, const Type& type ) 
+{ 
+    if (expr.isError() || type.isError())
+        return error;
+
+    if (expr == type)
+        return expr;
+
+    report(invalidReturn);
     return error;
-  }
-
-  report(invalidBinary, "=");
-  return error;
 }
-
-
-Type checkLogical(const Type& left, const Type& right, const string& op)
+Type checkTest( const Type& expr )
 {
-  // The types of the two operands need not be compatible.
+    if (expr.isError())
+        return error;
 
-  // The type of each operand must be a scalar type [E4].
-  if (left.isScalar() && right.isScalar())
-    return integer; /* The result has type int and is not an lvalue. */
+    if (expr.isScalar())
+        return expr;
 
-  report(invalidBinary, op);
-  return error;
+    report(invalidTest);
+    return error;
 }
+Type checkAssignment( const Type& left, const Type& right ) 
+{ 
+    if (left.isError() || right.isError())
+        return error;
 
-Type checkLogicalAnd(const Type& left, const Type& right)
-{
-  return checkLogical(left, right, "&&");
-}
-
-Type checkLogicalOr(const Type& left, const Type& right)
-{
-  return checkLogical(left, right, "||");
-}
-
-
-Type checkEquality(const Type& left, const Type& right, const string& op)
-{
-  // The types of the left and right operands must be compatible [E4].
-  if (left == right)
-    return integer; /* The result has type int and is not an lvalue. */
-
-  report(invalidBinary, op);
-  return error;
-}
-
-Type checkEqual(const Type& left, const Type& right)
-{
-  return checkEquality(left, right, "==");
-}
-
-Type checkNotEqual(const Type& left, const Type& right)
-{
-  return checkEquality(left, right, "!=");
-}
-
-
-Type checkRelational(const Type& left, const Type& right, const string& op)
-{
-  // The types of the left and right operands must be compatible [E4].
-  if (left == right)
-    return integer; /* The result has type int and is not an lvalue. */
-
-  report(invalidBinary, op);
-  return error;
-}
-
-Type checkLessOrEqual(const Type& left, const Type& right)
-{
-  return checkRelational(left, right, "<=");
-}
-
-Type checkGreaterOrEqual(const Type& left, const Type& right)
-{
-  return checkRelational(left, right, ">=");
-}
-
-Type checkLessThan(const Type& left, const Type& right)
-{
-  return checkRelational(left, right, "<");
-}
-
-Type checkGreaterThan(const Type& left, const Type& right)
-{
-  return checkRelational(left, right, ">");
-}
-
-
-Type checkAdditive(const Type& left, const Type& right, const string& op)
-{
-  // In all cases, operands undergo type promotion and the result is never an lvalue.
-  const Type t1 = left.promote();
-  const Type t2 = right.promote();
-
-  // If the types of both operands are numeric, then the result has type long if either operand has 
-  // type long, and has type int otherwise.
-  if (t1.isNumeric() && t2.isNumeric())
-    return (t1 == longinteger || t2 == longinteger) ? longinteger : integer;
-
-  // If the left operand has type “pointer to T” and the right operand has a numeric type, then the 
-  // result has type “pointer to T.
-  if (t1.isPointer() && t2.isNumeric())
-  {
-    /* Additionally, if any operand has type “pointer to T” then T must be complete [E10]. */
-    if (isIncompletePointer(t1))
+    if (left.isLvalue())
     {
-      report(incompletePtr);
-      return error;
+        if (left == right)
+            return left;
+
+        report(invalidBinary, "=");
+        return error;
     }
 
-    return t1;
-  }
+    report(lvalueRequired);
+    return error;
+}
 
-  // For addition only, if the left operand has a numeric type and the right operand has type 
-  // “pointer to T” then the result has type “pointer to T.”
-  if (op == "+" && t1.isNumeric() && t2.isPointer())
-  {
-    /* Additionally, if any operand has type “pointer to T” then T must be complete [E10]. */
-    if (isIncompletePointer(t2))
+
+Type checkLogical( const Type& left, const Type& right, const std::string& op ) 
+{ 
+    if (left.isError() || right.isError())
+        return error;
+        
+    if (left.isScalar() && right.isScalar())
+        return integer;
+
+    report(invalidBinary, op);
+    return error;
+}
+Type checkLogicalAnd( const Type& left, const Type& right ) 
+{
+    return checkLogical(left, right, "&&");
+}
+Type checkLogicalOr( const Type& left, const Type& right ) 
+{ 
+    return checkLogical(left, right, "||");
+}
+
+
+Type checkEquality( const Type& left, const Type& right, const std::string& op ) 
+{ 
+    if (left.isError() || right.isError())
+        return error;
+        
+    if (left == right)
+        return integer;
+
+    report(invalidBinary, op);
+    return error;
+}
+Type checkEqual( const Type& left, const Type& right ) 
+{ 
+    return checkEquality(left, right, "==");
+}
+Type checkNotEqual( const Type& left, const Type& right ) 
+{ 
+    return checkEquality(left, right, "!=");
+}
+
+
+Type checkRelational( const Type& left, const Type& right, const std::string& op ) 
+{ 
+    if (left.isError() || right.isError())
+        return error;
+        
+    if (left == right)
+        return integer;
+
+    report(invalidBinary, op);
+    return error;
+}
+Type checkLessOrEqual( const Type& left, const Type& right ) 
+{ 
+    return checkRelational(left, right, "<=");
+}
+Type checkGreaterOrEqual( const Type& left, const Type& right ) 
+{ 
+    return checkRelational(left, right, ">=");
+}
+Type checkLessThan( const Type& left, const Type& right ) 
+{ 
+    return checkRelational(left, right, "<");
+}
+Type checkGreaterThan( const Type& left, const Type& right ) 
+{ 
+    return checkRelational(left, right, ">");
+}
+
+
+Type checkAdditive( const Type& left, const Type& right, const std::string& op ) 
+{ 
+    if (left.isError() || right.isError())
+        return error;
+        
+    const Type t1 = left.promote();
+    const Type t2 = right.promote();
+
+    if (t1.isNumeric() && t2.isNumeric())
+        return (t1 == longinteger || t2 == longinteger) ? longinteger : integer;
+
+    if (t1.isPointer() && t2.isNumeric())
     {
-      report(incompletePtr);
-      return error;
+        if (isIncompletePointer(t1))
+        {
+            report(ptrIncomplete);
+            return error;
+        }
+
+        return t1;
     }
 
-    return t2;
-  }
+    if (op == "+" && t1.isNumeric() && t2.isPointer())
+    {
+        if (isIncompletePointer(t2))
+        {
+            report(ptrIncomplete);
+            return error;
+        }
 
-  // For subtraction only, if both operands have type “pointer to T” then the result has type 
-  // long.
-  if (op == "-" && t1.isPointer() && t2.isPointer())
-    return longinteger;
+        return t2;
+    }
 
-  // Otherwise, the result is an error [E4].
-  report(invalidBinary, op);
-  return error;
-}
+    if (op == "-" && t1.isPointer() && t2.isPointer())
+        return longinteger;
 
-Type checkAdd(const Type& left, const Type& right)
-{
-  return checkAdditive(left, right, "+");
-}
-
-Type checkSubtract(const Type& left, const Type& right)
-{
-  return checkAdditive(left, right, "-");
-}
-
-
-Type checkMultiplicative(const Type& left, const Type& right, const string& op)
-{
-  // The types of both operands must be numeric [E4].
-  // ...
-  // If either operand has type long, then the result has type long. Otherwise, the result has 
-  // type int. The result is never an lvalue.
-  if (left.isNumeric() && right.isNumeric())
-    return (left == longinteger || right == longinteger) ? longinteger : integer;
-
-  report(invalidBinary, op);
-  return error;
-}
-
-Type checkMultiply(const Type& left, const Type& right)
-{
-  return checkMultiplicative(left, right, "*");
-}
-
-Type checkDivide(const Type& left, const Type& right)
-{
-  return checkMultiplicative(left, right, "/");
-}
-
-Type checkRemainder(const Type& left, const Type& right)
-{
-  return checkMultiplicative(left, right, "%");
-}
-
-
-Type checkNegate(const Type& operand)
-{
-  // The operand in a unary - expression must have a numeric type [E5] and the result has the 
-  // same type.
-  if (operand.isNumeric())
-    return operand;
-
-  report(invalidUnary, "-");
-  return error;
-}
-
-Type checkNot(const Type& operand)
-{
-  // The operand in a ! expression must have a scalar type [E5], and the result has type int.
-  if (operand.isScalar())
-    return integer;
-
-  report(invalidUnary, "!");
-  return error;
-}
-
-Type checkAddress(const Type& operand)
-{
-  // The operand in a unary & expression must be an lvalue [E3].
-  // ...
-  // If the operand has type T, then the result has type “pointer to T” and is not an lvalue. 
-  if (isLvalue(operand))
-    return Type(operand.specifier(), operand.indirection() + 1);
-
-  report(reqLvalue, "&");
-  return error;
-}
-
-Type checkDereference(const Type& operand)
-{
-  // The operand in a unary * expression must have type “pointer to T” after any promotion [E5],
-  // and T must be complete [E10]. The result has type T and is an lvalue.
-
-  Type t = operand.promote();
-
-  if (t.isPointer())
-  {
-    if (!isIncompletePointer(t))
-      return Type(operand.specifier(), operand.indirection() - 1);
-
-    report(incompletePtr, "&");
+    report(invalidBinary, op);
     return error;
-  }
-
-  report(invalidUnary, "&");
-  return error;
 }
-
-Type checkSizeof(const Type& operand)
-{
-  // The operand of a sizeof expression must not have a function type [E7]. 
-  // The result of the expression has type long. In none of these cases is the result an lvalue.
-
-  if (!operand.isFunction())
-    return longinteger;
-
-  report(invalidSizeof);
+Type checkAdd( const Type& left, const Type& right ) 
+{ 
+    return checkAdditive(left, right, "+");
+}
+Type checkSubtract( const Type& left, const Type& right ) 
+{ 
+    return checkAdditive(left, right, "-");
 }
 
 
-Type checkArray(const Type& left, const Type& right)
-{
-  // The left operand in an array reference expression must have type “pointer to T” after any 
-  // promotion, the expression must have a numeric type [E4], and T must be complete [E10]. 
-  // The result has type T and is an lvalue
+Type checkMultiplicative( const Type& left, const Type& right, const std::string& op ) 
+{ 
+    return left;
+}
+Type checkMultiply( const Type& left, const Type& right ) 
+{ 
+    return left;
+}
+Type checkDivide( const Type& left, const Type& right ) 
+{ 
+    return left;
+}
+Type checkRemainder( const Type& left, const Type& right ) 
+{ 
+    return left;
+}
 
-  Type t1 = left.promote();
 
-  if (t1.isPointer() && right.isNumeric())
-  {
-    if (!isIncompletePointer(t1))
-      return Type(t1.specifier(), t1.indirection() - 1);     
+Type checkNegate( const Type& expr ) 
+{ 
+    if (expr.isError())
+        return error;
+        
+    if (expr.isNumeric())
+        return expr;
 
-    report(incompletePtr);
+    report(invalidUnary, "-");
     return error;
-  }
+}
+Type checkNot( const Type& expr ) 
+{ 
+    if (expr.isScalar())
+        return integer;
 
-  report(invalidBinary, "[]");
-  return error;
+    report(invalidUnary, "!");
+    return error;
+}
+Type checkAddress( const Type& expr ) 
+{
+    if (expr.isError())
+        return error;
+
+    if (expr.isLvalue())
+        return Type(expr.specifier(), expr.indirection() + 1);
+
+    report(lvalueRequired);
+    return error;
+}
+Type checkDereference( const Type& expr )
+{
+    if (expr.isError())
+        return error;
+
+    const Type t1 = expr.promote();
+
+    if (t1.isPointer())
+    {
+        if (!isIncompletePointer(t1))
+            return Type(t1.specifier());
+
+        report(ptrIncomplete);
+        return error;
+    }
+
+    report(invalidUnary, "*");
+    return error;
+}
+Type checkSizeof( const Type& expr ) 
+{ 
+    if (expr.isError())
+        return error;
+
+    if (!expr.isFunction())
+        return longinteger;
+
+    report(invalidSizeof);
+    return error;
 }
 
-Type checkStructField(const Type& left, const Type& right)
-{
-  // The operand in a direct structure field reference must be a structure type and the 
-  // identifier must be a field of the structure [E4], in which case the type of the 
-  // expression is the type of the identifier. The result is an lvalue if the expression 
-  // is an lvalue and if the type of the identifier is not an array type.
 
-  return error;
+Type checkArray( const Type& left, const Type& right ) 
+{ 
+    const Type t1 = left.promote();
+
+    if (t1.isPointer())
+    {
+        if (right.isNumeric())
+        {
+            if (!isIncompletePointer(t1))
+                return Type(t1.specifier(), t1.indirection() - 1);
+
+            report(ptrIncomplete);
+            return error;
+        }
+
+        report(invalidUnary, "[]");
+        return error;
+    }
+
+    report(invalidUnary, "[]");
+    return error;
+}
+Type checkStructField( const Type& left, const Type& right ) 
+{ 
+    return left;
+}
+Type checkStructPointerField( const Type& left, const Type& right ) 
+{ 
+    return left;
 }
 
-Type checkStructPointerField(const Type& left, const Type& right)
+
+Type checkFunction( const string& name, Parameters& args )
 {
-  // The operand in an indirect structure field reference must be a pointer to a structure 
-  // type (after any promotion), the structure type must be complete [E10], and the 
-  // identifier must be a field of the structure [E4], in which case the type of the 
-  // expression is the type of the identifier. The result is an lvalue if the type of the 
-  // expression is not an array type.
+    // In this function I reverse my rule on the rest of the check...() functions where
+    // I like to do only the "affirmative" logic and then return errors in the rest of
+    // the conditions. I did it here because I realized this function is really
+    // confusing and heavily nested otherwise. And because I didn't like the idea of
+    // doing some affirmative and some negative logic in the same function, I committed
+    // to the exact opposite of what you see in the rest of the check..() functions.
+    //      D E A L     W I T H     I T
+
+    Symbol* symbol = toplevel->lookup(name); 
+    if (symbol == nullptr)
+    {
+        report(funcRequired);
+        return error;
+    }
+
+    const Type t1 = symbol->type();
+    if (!t1.isFunction())
+    {
+        report(funcRequired);
+        return error;
+    }
+
+    for (unsigned i = 0; i < args.size(); ++i)
+        args[i].promote();
+
+    const Parameters* params = t1.parameters();
+    if (params != nullptr)
+    {
+        if (params->size() != args.size())
+        {
+            report(invalidArgs);
+            return error;
+        }
+
+        for (unsigned i = 0; i < args.size(); ++i)
+        {
+            if ((*params)[i] != args[i])
+            {
+                report(invalidArgs);
+                return error;
+            }
+        }
+    }
+
+    return Type(t1.specifier(), t1.indirection());
 }

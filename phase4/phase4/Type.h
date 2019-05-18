@@ -61,15 +61,13 @@ public:
 
     bool isStruct() const;
 
-    /* start phase 4 */ 
-
+    bool isLvalue() const;
     bool isNumeric() const;
     bool isPointer() const;
     bool isScalar() const;
 
     Type promote() const;
     bool isCompatibleWith(const Type& other) const;
-
 };
 
 std::ostream &operator <<(std::ostream &ostr, const Type &type);
