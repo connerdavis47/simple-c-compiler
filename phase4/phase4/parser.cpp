@@ -31,7 +31,7 @@ static Type returnType;
 static bool isLong;
 
 static Type expression( bool& lvalue );
-static void statement();
+static void statement( const Type& returnType );
 
 
 /*
@@ -726,10 +726,10 @@ static Type expression( bool& lvalue )
  *		  statement statements
  */
 
-static void statements()
+static void statements( const Type& returnType )
 {
     while (lookahead != '}')
-		statement();
+		  statement(returnType);
 }
 
 
@@ -749,7 +749,7 @@ static void statements()
  *		  expression ;
  */
 
-static void statement()
+static void statement( const Type& returnType )
 {
 	bool lvalue_init = false;
 
@@ -758,7 +758,7 @@ static void statement()
 		match('{');
 		openScope();
 		declarations();
-		statements();
+		statements(returnType);
 		closeScope();
 		match('}');
     } 
@@ -774,7 +774,7 @@ static void statement()
 		match('(');
 		checkTest(expression(lvalue_init));
 		match(')');
-		statement();
+		statement(returnType);
     } 
 	else if (lookahead == IF) 
 	{
@@ -782,12 +782,12 @@ static void statement()
 		match('(');
 		checkTest(expression(lvalue_init));
 		match(')');
-		statement();
+		statement(returnType);
 
 		if (lookahead == ELSE) 
 		{
 			match(ELSE);
-			statement();
+			statement(returnType);
 		}
     } 
 	else 
@@ -973,13 +973,14 @@ static void globalOrFunction()
 			} 
 			else 
 			{
+        const Type& returnType = Type(typespec, indirection);
+
 				openScope();
-				returnType = Type(typespec, indirection);
 				defineFunction(name, Type(typespec, indirection, parameters()));
 				match(')');
 				match('{');
 				declarations();
-				statements();
+				statements(returnType);
 				closeScope();
 				match('}');
 			}
