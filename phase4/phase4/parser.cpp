@@ -21,10 +21,6 @@ static int lookahead;
 static string lexbuf;
 
 /**
- * The return type of the most recently parsed function.
- */
-static Type returnType;
-/**
  * True if the last number read by number() was a long integer.
  * False if that number was an integer.
  */
@@ -797,8 +793,8 @@ static void statement( const Type& returnType )
 		if (lookahead == '=') 
 		{
 			match('=');
-			bool rvalue = false;
-			const Type right = expression(rvalue);
+			bool rvalue_init = false;
+			const Type right = expression(rvalue_init);
 			checkAssignment(left, right, lvalue_init);
 		}
 
