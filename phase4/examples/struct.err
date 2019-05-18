@@ -1,0 +1,8 @@
+line 17: lvalue required in expression
+line 18: invalid operands to binary .
+line 20: invalid operands to binary .
+line 23: lvalue required in expression
+line 24: invalid operands to binary ->
+line 30: invalid operands to binary =
+line 33: using pointer to incomplete type
+line 35: using pointer to incomplete type
