@@ -376,8 +376,10 @@ static Type postfixExpression( bool lparenMatched, bool& lvalue )
 		else if (lookahead == ARROW) 
 		{
 			match(ARROW);
-			match(ID);
+			const string field = identifier();
+			left = checkStructPointerField(left, field);
 
+			lvalue = left.isSimple();
 		} 
 		else break;
     }

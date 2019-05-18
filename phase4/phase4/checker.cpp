@@ -601,7 +601,7 @@ Type checkArray( const Type& left, const Type& right )
     report(invalidBinary, "[]");
     return error;
 }
-Type checkStructField( const Type& type, const std::string field ) 
+Type checkStructField( const Type& type, const string field ) 
 { 
     if (type.isError())
         return error;
@@ -633,9 +633,9 @@ expression is an lvalue and if the type of the identifier is not an array type.
     report(invalidBinary, ".");
     return error;
 }
-Type checkStructPointerField( const Type& left, const Type& right ) 
+Type checkStructPointerField( const Type& left, const string field ) 
 { 
-    if (left.isError() || right.isError())
+    if (left.isError())
         return error;
 
     /*
@@ -644,8 +644,31 @@ the structure type must be complete [E10], and the identifier must be a field of
 type of the expression is the type of the identifier. The result is an lvalue if the type of the expression is not an array
 type.
      */
+    const Type t1 = left.promote();
 
-    return left;
+    if (t1.isPointer() && t1.isStruct())
+    {
+        if (!isIncompletePointer(t1))
+        {
+            if (fields.find(t1.specifier()) != fields.end())
+            {
+                const Symbols typeFields = fields.find(t1.specifier())->second->symbols();
+
+                for (unsigned i = 0; i < typeFields.size(); ++i)
+                    if (typeFields[i]->name() == field)
+                        return typeFields[i]->type();
+            }
+
+            report(invalidBinary, "->");
+            return error;
+        }
+
+        report(ptrIncomplete);
+        return error;
+    }
+
+    report(invalidBinary, "->");
+    return error;
 }
 
 
