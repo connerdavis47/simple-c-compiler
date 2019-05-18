@@ -13,6 +13,8 @@
 # include "tokens.h"
 # include "checker.h"
 
+using std::cout;
+using std::endl;
 using std::string;
 
 static int lookahead;
@@ -451,9 +453,10 @@ static Type prefixExpression( bool& lvalue )
 		{
 			const string typespec = specifier();
 			const unsigned indirection = pointers();
+			expr = Type(typespec, indirection);
 			match(')');
 			const Type right = prefixExpression(lvalue);
-			checkTypeCast(Type(typespec, indirection), right);
+			expr = checkTypeCast(expr, right);
 
 			lvalue = false;
 		}
@@ -786,11 +789,11 @@ static void statement()
 	else 
 	{
 		const Type left = expression(lvalue_init);
-		bool rvalue = false;
 
 		if (lookahead == '=') 
 		{
 			match('=');
+			bool rvalue = false;
 			const Type right = expression(rvalue);
 			checkAssignment(left, right, lvalue_init);
 		}
@@ -958,7 +961,6 @@ static void globalOrFunction()
 		else if (lookahead == '(') 
 		{
 			match('(');
-
 			if (lookahead == ')') 
 			{
 				declareFunction(name, Type(typespec, indirection, nullptr));

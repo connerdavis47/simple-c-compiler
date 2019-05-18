@@ -454,8 +454,6 @@ Type checkSubtract( const Type& left, const Type& right )
     const Type t1 = left.promote();
     const Type t2 = right.promote();
 
-    cout << "subtract -> " << left << " - " << right << endl;
-
     if (t1.isPointer() && t2.isPointer())
     {
         if (!isIncompletePointer(t1) && !isIncompletePointer(t2))
@@ -634,17 +632,14 @@ Type checkFunction( const string& name, Parameters& args )
         return error;
     }
 
-    const Type t1 = symbol->type();
+    Type t1 = symbol->type();
     if (!t1.isFunction())
     {
         report(funcRequired);
         return error;
     }
 
-    for (unsigned i = 0; i < args.size(); ++i)
-        args[i].promote();
-
-    const Parameters* params = t1.parameters();
+    Parameters* params = t1.parameters();
     if (params != nullptr)
     {
         if (params->size() != args.size())
@@ -655,10 +650,10 @@ Type checkFunction( const string& name, Parameters& args )
 
         for (unsigned i = 0; i < args.size(); ++i)
         {
-            const Type t1 = (*params)[i].promote();
-            const Type t2 = args[i].promote();
+            const Type type1 = (*params)[i];
+            const Type type2 = args[i].promote();
 
-            if (t1 != t2 && !coerceIntToLong(t1, t2))
+            if (type1 != type2 && !coerceIntToLong(type1, type2))
             {
                 report(invalidArgs);
                 return error;
