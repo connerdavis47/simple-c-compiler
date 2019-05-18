@@ -313,6 +313,7 @@ Type checkTest( const Type& expr )
 }
 Type checkAssignment( const Type& left, const Type& right, const bool& lvalue ) 
 { 
+    // cout << left << "\t=\t" << right << "\tlvalue? " << (lvalue ? "yes" : "no") << endl;
     if (left.isError() || right.isError())
         return error;
 
@@ -448,6 +449,7 @@ Type checkAdd( const Type& left, const Type& right )
 }
 Type checkSubtract( const Type& left, const Type& right ) 
 { 
+    cout << left << " - " << right << endl;
     if (left.isError() || right.isError())
         return error;
 
@@ -599,17 +601,49 @@ Type checkArray( const Type& left, const Type& right )
     report(invalidBinary, "[]");
     return error;
 }
-Type checkStructField( const Type& left, const Type& right ) 
+Type checkStructField( const Type& type, const std::string field ) 
 { 
-    if (left.isError() || right.isError())
+    if (type.isError())
         return error;
 
-    return left;
+    /*
+        The operand in a direct structure field reference must be a structure type and the identifier must be a field of
+the structure [E4], in which case the type of the expression is the type of the identifier. The result is an lvalue if the
+expression is an lvalue and if the type of the identifier is not an array type.
+     */
+
+    if (type.isStruct())
+    {
+        if (fields.find(type.specifier()) != fields.end())
+        {
+            const Symbols typeFields = fields.find(type.specifier())->second->symbols();
+
+            for (unsigned i = 0; i < typeFields.size(); ++i)
+                if (typeFields[i]->name() == field)
+                    return typeFields[i]->type();
+
+            report(invalidBinary, ".");
+            return error;
+        }
+
+        report(invalidBinary, ".");
+        return error;
+    }
+
+    report(invalidBinary, ".");
+    return error;
 }
 Type checkStructPointerField( const Type& left, const Type& right ) 
 { 
     if (left.isError() || right.isError())
         return error;
+
+    /*
+        The operand in an indirect structure field reference must be a pointer to a structure type (after any promotion),
+the structure type must be complete [E10], and the identifier must be a field of the structure [E4], in which case the
+type of the expression is the type of the identifier. The result is an lvalue if the type of the expression is not an array
+type.
+     */
 
     return left;
 }

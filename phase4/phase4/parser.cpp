@@ -368,8 +368,10 @@ static Type postfixExpression( bool lparenMatched, bool& lvalue )
 		else if (lookahead == '.') 
 		{
 			match('.');
-			match(ID);
+			const string field = identifier();
+			left = checkStructField(left, field);
 
+			lvalue = left.isSimple();
 		} 
 		else if (lookahead == ARROW) 
 		{

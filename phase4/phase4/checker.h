@@ -59,7 +59,7 @@ Type checkSizeof( const Type& expr );
 Type checkTypeCast( const Type& left, const Type& right );
 
 Type checkArray( const Type& left, const Type& right );
-Type checkStructField( const Type& left, const Type& right );
+Type checkStructField( const Type& struct_defn, const std::string field );
 Type checkStructPointerField( const Type& left, const Type& right );
 
 Type checkFunction( const std::string& name, Parameters& args );
