@@ -7,20 +7,22 @@
 
 # ifndef CHECKER_H
 # define CHECKER_H
+
 # include <string>
+
 # include "Scope.h"
 
-Scope *openScope();
-Scope *closeScope();
+Scope* openScope();
+Scope* closeScope();
 
-void openStruct(const std::string &name);
-void closeStruct(const std::string &name);
+void openStruct( const std::string& name );
+void closeStruct( const std::string& name );
 
-Symbol *defineFunction(const std::string &name, const Type &type);
-Symbol *declareFunction(const std::string &name, const Type &type);
-Symbol *declareParameter(const std::string &name, const Type &type);
-Symbol *declareVariable(const std::string &name, const Type &type);
-Symbol *checkIdentifier(const std::string &name);
+Symbol *defineFunction(const std::string& name, const Type& type);
+Symbol *declareFunction(const std::string& name, const Type& type);
+Symbol *declareParameter(const std::string& name, const Type& type);
+Symbol *declareVariable(const std::string& name, const Type& type);
+Symbol *checkIdentifier(const std::string& name);
 
 Type checkReturn( const Type& expr, const Type& type );
 Type checkTest( const Type& expr );

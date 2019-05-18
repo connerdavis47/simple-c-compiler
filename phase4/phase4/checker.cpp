@@ -10,17 +10,19 @@
 
 # include <map>
 # include <iostream>
+
 # include "lexer.h"
 # include "checker.h"
 # include "Symbol.h"
 # include "Scope.h"
 # include "Type.h"
 
+using std::map;
+using std::string;
 
-using namespace std;
-
-static map<string,Scope *> fields;
-static Scope *outermost, *toplevel;
+static map<string, Scope*> fields;
+static Scope* outermost;
+static Scope* toplevel;
 
 static const Type error;
 static const Type integer("int");
@@ -35,12 +37,12 @@ static string nonpointer = "pointer type required for '%s'";
 
 static string invalidReturn = "invalid return type";                    // E1
 static string invalidTest = "invalid type for test expression";         // E2
-static string lvalueRequired = "lvalue required in expression";              // E3
+static string lvalueRequired = "lvalue required in expression";         // E3
 static string invalidBinary = "invalid operands to binary %s";          // E4
-static string invalidUnary = "invalid operand to unary %s";            // E5
+static string invalidUnary = "invalid operand to unary %s";             // E5
 static string invalidCast = "invalid operand in cast expression";       // E6
 static string invalidSizeof = "invalid operand in sizeof expression";   // E7
-static string funcRequired = "called object is not a function";              // E8
+static string funcRequired = "called object is not a function";         // E8
 static string invalidArgs = "invalid arguments to called function";     // E9
 static string ptrIncomplete = "using pointer to incomplete type";       // E10
 
@@ -52,13 +54,13 @@ static string ptrIncomplete = "using pointer to incomplete type";       // E10
  *		fields have been defined.
  */
 
-static Type checkIfComplete(const string &name, const Type &type)
+static Type checkIfComplete( const string& name, const Type& type )
 {
     if (!type.isStruct() || type.indirection() > 0)
-	return type;
+	    return type;
 
     if (fields.count(type.specifier()) > 0)
-	return type;
+	    return type;
 
     report(incomplete, name);
     return error;
@@ -71,10 +73,10 @@ static Type checkIfComplete(const string &name, const Type &type)
  * Description:	Check if the given type is a structure.
  */
 
-static Type checkIfStructure(const string &name, const Type &type)
+static Type checkIfStructure( const string& name, const Type& type )
 {
     if (!type.isStruct() || type.indirection() > 0)
-	return type;
+	    return type;
 
     report(nonpointer, name);
     return type;
@@ -87,12 +89,12 @@ static Type checkIfStructure(const string &name, const Type &type)
  * Description:	Create a scope and make it the new top-level scope.
  */
 
-Scope *openScope()
+Scope* openScope()
 {
     toplevel = new Scope(toplevel);
 
     if (outermost == nullptr)
-	outermost = toplevel;
+	    outermost = toplevel;
 
     return toplevel;
 }
@@ -105,7 +107,7 @@ Scope *openScope()
  *		the new top-level scope.
  */
 
-Scope *closeScope()
+Scope* closeScope()
 {
     Scope *old = toplevel;
 
@@ -121,12 +123,13 @@ Scope *closeScope()
  *		structure with the same name is already defined, delete it.
  */
 
-void openStruct(const string &name)
+void openStruct( const string& name )
 {
-    if (fields.count(name) > 0) {
-	delete fields[name];
-	fields.erase(name);
-	report(redefined, name);
+    if (fields.count(name) > 0) 
+    {
+	    delete fields[name];
+	    fields.erase(name);
+	    report(redefined, name);
     }
 
     openScope();
@@ -139,7 +142,7 @@ void openStruct(const string &name)
  * Description:	Close the scope for the structure with the specified name.
  */
 
-void closeStruct(const string &name)
+void closeStruct( const string& name )
 {
     fields[name] = closeScope();
 }
@@ -154,20 +157,23 @@ void closeStruct(const string &name)
  *		declaration.
  */
 
-Symbol *defineFunction(const string &name, const Type &type)
+Symbol *defineFunction( const string& name, const Type& type )
 {
     Symbol *symbol = outermost->find(name);
 
-    if (symbol != nullptr) {
-	if (symbol->type().isFunction() && symbol->type().parameters()) {
-	    report(redefined, name);
-	    delete symbol->type().parameters();
+    if (symbol != nullptr) 
+    {
+        if (symbol->type().isFunction() && symbol->type().parameters()) 
+        {
+            report(redefined, name);
+            delete symbol->type().parameters();
 
-	} else if (type != symbol->type())
-	    report(conflicting, name);
+        } 
+        else if (type != symbol->type())
+            report(conflicting, name);
 
-	outermost->remove(name);
-	delete symbol;
+        outermost->remove(name);
+        delete symbol;
     }
 
     symbol = new Symbol(name, checkIfStructure(name, type));
@@ -185,17 +191,19 @@ Symbol *defineFunction(const string &name, const Type &type)
  *		redeclaration is discarded.
  */
 
-Symbol *declareFunction(const string &name, const Type &type)
+Symbol *declareFunction( const string& name, const Type& type )
 {
     Symbol *symbol = outermost->find(name);
 
-    if (symbol == nullptr) {
-	symbol = new Symbol(name, checkIfStructure(name, type));
-	outermost->insert(symbol);
-
-    } else if (type != symbol->type()) {
-	report(conflicting, name);
-	delete type.parameters();
+    if (symbol == nullptr) 
+    {
+	    symbol = new Symbol(name, checkIfStructure(name, type));
+	    outermost->insert(symbol);
+    } 
+    else if (type != symbol->type()) 
+    {
+        report(conflicting, name);
+        delete type.parameters();
     }
 
     return symbol;
@@ -211,7 +219,7 @@ Symbol *declareFunction(const string &name, const Type &type)
  *		cannot be a structure type.
  */
 
-Symbol *declareParameter(const string &name, const Type &type)
+Symbol *declareParameter( const string& name, const Type& type )
 {
     return declareVariable(name, checkIfStructure(name, type));
 }
@@ -224,19 +232,20 @@ Symbol *declareParameter(const string &name, const Type &type)
  *		redeclaration is discarded.
  */
 
-Symbol *declareVariable(const string &name, const Type &type)
+Symbol *declareVariable( const string& name, const Type& type )
 {
     Symbol *symbol = toplevel->find(name);
 
-    if (symbol == nullptr) {
-	symbol = new Symbol(name, checkIfComplete(name, type));
-	toplevel->insert(symbol);
-
-    } else if (outermost != toplevel)
-	report(redeclared, name);
+    if (symbol == nullptr) 
+    {
+        symbol = new Symbol(name, checkIfComplete(name, type));
+        toplevel->insert(symbol);
+    } 
+    else if (outermost != toplevel)
+	    report(redeclared, name);
 
     else if (type != symbol->type())
-	report(conflicting, name);
+	    report(conflicting, name);
 
     return symbol;
 }
@@ -250,21 +259,22 @@ Symbol *declareVariable(const string &name, const Type &type)
  *		future error messages.
  */
 
-Symbol *checkIdentifier(const string &name)
+Symbol *checkIdentifier( const string& name )
 {
     Symbol *symbol = toplevel->lookup(name);
 
-    if (symbol == nullptr) {
-	report(undeclared, name);
-	symbol = new Symbol(name, error);
-	toplevel->insert(symbol);
+    if (symbol == nullptr) 
+    {
+        report(undeclared, name);
+        symbol = new Symbol(name, error);
+        toplevel->insert(symbol);
     }
 
     return symbol;
 }
 
 
-static bool isIncompletePointer(const Type& t)
+static bool isIncompletePointer( const Type& t )
 {
   return t.isStruct() && t.indirection() == 1 && fields.count(t.specifier()) == 0;
 }

@@ -8,16 +8,24 @@
 
 # include <cstdlib>
 # include <iostream>
+
 # include "lexer.h"
 # include "tokens.h"
 # include "checker.h"
 
-using namespace std;
+using std::string;
 
 static int lookahead;
 static string lexbuf;
 
+/**
+ * The return type of the most recently parsed function.
+ */
 static Type returnType;
+/**
+ * True if the last number read by number() was a long integer.
+ * False if that number was an integer.
+ */
 static bool isLong;
 
 static Type expression();
@@ -33,9 +41,9 @@ static void statement();
 static void error()
 {
     if (lookahead == DONE)
-	report("syntax error at end of file");
+		report("syntax error at end of file");
     else
-	report("syntax error at '%s'", lexbuf);
+		report("syntax error at '%s'", lexbuf);
 
     exit(EXIT_FAILURE);
 }
@@ -52,7 +60,7 @@ static void error()
 static void match(int t)
 {
     if (lookahead != t)
-	error();
+		error();
 
     lookahead = lexan(lexbuf);
 }
@@ -66,12 +74,10 @@ static void match(int t)
 
 static unsigned long number()
 {
-    string buf;
-
-
-    buf = lexbuf;
+    const string buf = lexbuf;
     match(NUM);
 	
+	// note whether this number is a long for type checking
 	isLong = buf.find("L") != string::npos;
 
     return strtoul(buf.c_str(), NULL, 0);
@@ -86,10 +92,7 @@ static unsigned long number()
 
 static string identifier()
 {
-    string buf;
-
-
-    buf = lexbuf;
+    const string buf = lexbuf;
     match(ID);
     return buf;
 }
@@ -121,14 +124,16 @@ static bool isSpecifier(int token)
 
 static string specifier()
 {
-    if (lookahead == INT) {
-	match(INT);
-	return "int";
+    if (lookahead == INT) 
+	{
+		match(INT);
+		return "int";
     }
 
-    if (lookahead == LONG) {
-	match(LONG);
-	return "long";
+    if (lookahead == LONG) 
+	{
+		match(LONG);
+		return "long";
     }
 
     match(STRUCT);
@@ -150,10 +155,10 @@ static unsigned pointers()
 {
     unsigned count = 0;
 
-
-    while (lookahead == '*') {
-	match('*');
-	count ++;
+    while (lookahead == '*') 
+	{
+		match('*');
+		count ++;
     }
 
     return count;
@@ -171,21 +176,19 @@ static unsigned pointers()
  *		  pointers identifier [ num ]
  */
 
-static void declarator(const string &typespec)
+static void declarator(const string& typespec)
 {
-    unsigned indirection;
-    string name;
+    const unsigned indirection = pointers();
+    const string name = identifier();
 
-
-    indirection = pointers();
-    name = identifier();
-
-    if (lookahead == '[') {
-	match('[');
-	declareVariable(name, Type(typespec, indirection, number()));
-	match(']');
-    } else
-	declareVariable(name, Type(typespec, indirection));
+    if (lookahead == '[') 
+	{
+		match('[');
+		declareVariable(name, Type(typespec, indirection, number()));
+		match(']');
+    } 
+	else
+		declareVariable(name, Type(typespec, indirection));
 }
 
 
@@ -206,15 +209,13 @@ static void declarator(const string &typespec)
 
 static void declaration()
 {
-    string typespec;
+    const string typespec = specifier();
 
-
-    typespec = specifier();
     declarator(typespec);
-
-    while (lookahead == ',') {
-	match(',');
-	declarator(typespec);
+    while (lookahead == ',') 
+	{
+		match(',');
+		declarator(typespec);
     }
 
     match(';');
@@ -234,7 +235,7 @@ static void declaration()
 static void declarations()
 {
     while (isSpecifier(lookahead))
-	declaration();
+		declaration();
 }
 
 
@@ -306,7 +307,6 @@ static Type primaryExpression(bool lparenMatched)
 		if (lookahead == '(') 
 		{
 			Parameters args;
-
 			match('(');
 
 			if (lookahead != ')') 
@@ -434,10 +434,10 @@ static Type prefixExpression()
 		if (isSpecifier(lookahead)) 
 		{
 			const string typespec = specifier();
-			const unsigned ptrs = pointers();
+			const unsigned indirection = pointers();
 			match(')');
 			const Type right = prefixExpression();
-			checkTypeCast(Type(typespec, ptrs), right);
+			checkTypeCast(Type(typespec, indirection), right);
 		}
 		else 
 			expr = postfixExpression(true);
@@ -713,8 +713,6 @@ static void statements()
 
 static void statement()
 {
-	Type left;
-
     if (lookahead == '{') 
 	{
 		match('{');
@@ -727,16 +725,14 @@ static void statement()
 	else if (lookahead == RETURN) 
 	{
 		match(RETURN);
-		left = expression();
-		checkReturn(left, returnType);
+		checkReturn(expression(), returnType);
 		match(';');
     } 
 	else if (lookahead == WHILE) 
 	{
 		match(WHILE);
 		match('(');
-		left = expression();
-		checkTest(left);
+		checkTest(expression());
 		match(')');
 		statement();
     } 
@@ -744,8 +740,7 @@ static void statement()
 	{
 		match(IF);
 		match('(');
-		left = expression();
-		checkTest(left);
+		checkTest(expression());
 		match(')');
 		statement();
 
@@ -757,14 +752,12 @@ static void statement()
     } 
 	else 
 	{
-		Type right;
-		left = expression();
+		const Type left = expression();
 
 		if (lookahead == '=') 
 		{
 			match('=');
-			right = expression();
-			checkAssignment(left, right);
+			checkAssignment(left, expression());
 		}
 
 		match(';');
@@ -784,15 +777,11 @@ static void statement()
 
 static Type parameter()
 {
-    string typespec, name;
-    unsigned indirection;
+	const string typespec = specifier();
+	const unsigned indirection = pointers();
+	const string name = identifier();
 
-
-    typespec = specifier();
-    indirection = pointers();
-    name = identifier();
-
-    Type type(typespec, indirection);
+	const Type type(typespec, indirection);
     declareParameter(name, type);
     return type;
 }
@@ -813,21 +802,22 @@ static Type parameter()
  *		  parameter , parameter-list
  */
 
-static Parameters *parameters()
+static Parameters* parameters()
 {
-    Parameters *params = new Parameters();
-
+    Parameters* params = new Parameters();
 
     if (lookahead == VOID)
-	match(VOID);
+		match(VOID);
 
-    else {
-	params->push_back(parameter());
+    else 
+	{
+		params->push_back(parameter());
 
-	while (lookahead == ',') {
-	    match(',');
-	    params->push_back(parameter());
-	}
+		while (lookahead == ',') 
+		{
+			match(',');
+			params->push_back(parameter());
+		}
     }
 
     return params;
@@ -847,27 +837,25 @@ static Parameters *parameters()
  *		  pointers identifier [ num ]
  */
 
-static void globalDeclarator(const string &typespec)
+static void globalDeclarator(const string& typespec)
 {
-    unsigned indirection;
-    string name;
+    const unsigned indirection = pointers();
+    const string name = identifier();
 
-
-    indirection = pointers();
-    name = identifier();
-
-    if (lookahead == '(') {
-	match('(');
-	declareFunction(name, Type(typespec, indirection, nullptr));
-	match(')');
-
-    } else if (lookahead == '[') {
-	match('[');
-	declareVariable(name, Type(typespec, indirection, number()));
-	match(']');
-
-    } else
-	declareVariable(name, Type(typespec, indirection));
+    if (lookahead == '(') 
+	{
+		match('(');
+		declareFunction(name, Type(typespec, indirection, nullptr));
+		match(')');
+    } 
+	else if (lookahead == '[') 
+	{
+		match('[');
+		declareVariable(name, Type(typespec, indirection, number()));
+		match(']');
+    } 
+	else
+		declareVariable(name, Type(typespec, indirection));
 }
 
 
@@ -881,11 +869,12 @@ static void globalDeclarator(const string &typespec)
  * 		  , global-declarator remaining-declarators
  */
 
-static void remainingDeclarators(const string &typespec)
+static void remainingDeclarators(const string& typespec)
 {
-    while (lookahead == ',') {
-	match(',');
-	globalDeclarator(typespec);
+    while (lookahead == ',') 
+	{
+		match(',');
+		globalDeclarator(typespec);
     }
 
     match(';');
@@ -907,10 +896,7 @@ static void remainingDeclarators(const string &typespec)
 
 static void globalOrFunction()
 {
-    string typespec, name;
-    unsigned indirection;
-
-    typespec = specifier();
+    const string typespec = specifier();
 
     if (typespec != "int" && typespec != "long" && lookahead == '{') 
 	{
@@ -924,8 +910,8 @@ static void globalOrFunction()
     } 
 	else 
 	{
-		indirection = pointers();
-		name = identifier();
+		const unsigned indirection = pointers();
+		const string name = identifier();
 
 		if (lookahead == '[') 
 		{
@@ -978,7 +964,7 @@ int main()
     lookahead = lexan(lexbuf);
 
     while (lookahead != DONE)
-	globalOrFunction();
+		globalOrFunction();
 
     closeScope();
     exit(EXIT_SUCCESS);
