@@ -786,13 +786,13 @@ static void statement()
 	else 
 	{
 		const Type left = expression(lvalue_init);
-		const bool left_lvalue = lvalue_init;
+		bool rvalue = false;
 
 		if (lookahead == '=') 
 		{
 			match('=');
-			const Type right = expression(lvalue_init);
-			checkAssignment(left, right, left_lvalue);
+			const Type right = expression(rvalue);
+			checkAssignment(left, right, lvalue_init);
 		}
 
 		match(';');

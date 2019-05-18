@@ -252,7 +252,8 @@ bool Type::isPointer() const
 
 bool Type::isScalar() const
 {
-  return isNumeric() || isPointer();
+    const Type t1 = promote();
+    return isNumeric() || t1.isPointer();
 }
 
 Type Type::promote() const // (any, any, ARRAY) --> (any, + 1, SIMPLE)

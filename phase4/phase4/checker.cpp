@@ -362,6 +362,9 @@ Type checkEquality( const Type& left, const Type& right, const std::string& op )
     if (left == right)
         return integer;
 
+    else if (coerceIntToLong(left, right))
+        return longinteger;
+
     report(invalidBinary, op);
     return error;
 }
@@ -382,6 +385,9 @@ Type checkRelational( const Type& left, const Type& right, const std::string& op
         
     if (left == right)
         return integer;
+
+    else if (coerceIntToLong(left, right))
+        return longinteger;
 
     report(invalidBinary, op);
     return error;
@@ -406,68 +412,82 @@ Type checkGreaterThan( const Type& left, const Type& right )
 
 Type checkAdditive( const Type& left, const Type& right, const std::string& op ) 
 { 
-    if (left.isError() || right.isError())
+    if (left.isNumeric() && right.isNumeric())
+        return coerceIntToLong(left, right) ? longinteger : integer;
+
+    if (left.isPointer() && right.isNumeric())
+    {
+        if (!isIncompletePointer(left))
+            return left;
+
+        report(ptrIncomplete);
         return error;
-        
-    const Type t1 = left.promote();
-    const Type t2 = right.promote();
-
-    if (t1.isNumeric() && t2.isNumeric())
-        return (t1 == longinteger || t2 == longinteger) ? longinteger : integer;
-
-    if (t1.isPointer() && t2.isNumeric())
-    {
-        if (isIncompletePointer(t1))
-        {
-            report(ptrIncomplete);
-            return error;
-        }
-
-        return t1;
     }
-
-    if (op == "+" && t1.isNumeric() && t2.isPointer())
-    {
-        if (isIncompletePointer(t2))
-        {
-            report(ptrIncomplete);
-            return error;
-        }
-
-        return t2;
-    }
-
-    if (op == "-" && t1.isPointer() && t2.isPointer())
-        return longinteger;
 
     report(invalidBinary, op);
     return error;
 }
 Type checkAdd( const Type& left, const Type& right ) 
-{ 
-    return checkAdditive(left, right, "+");
+{
+    if (left.isError() || right.isError())
+        return error;
+
+    const Type t1 = left.promote();
+    const Type t2 = right.promote();
+
+    if (t1.isNumeric() && t2.isPointer())
+    {
+        if (!isIncompletePointer(t2))
+            return t2;
+
+        report(ptrIncomplete);
+        return error;
+    }
+
+    return checkAdditive(t1, t2, "+");
 }
 Type checkSubtract( const Type& left, const Type& right ) 
 { 
-    return checkAdditive(left, right, "-");
+    if (left.isError() || right.isError())
+        return error;
+
+    const Type t1 = left.promote();
+    const Type t2 = right.promote();
+
+    cout << "subtract -> " << left << " - " << right << endl;
+
+    if (t1.isPointer() && t2.isPointer())
+    {
+        if (!isIncompletePointer(t1) && !isIncompletePointer(t2))
+            return longinteger;
+
+        report(ptrIncomplete);
+        return error;
+    }
+
+    return checkAdditive(t1, t2, "-");
 }
 
 
 Type checkMultiplicative( const Type& left, const Type& right, const std::string& op ) 
 { 
-    return left;
+    if (left.isNumeric() && right.isNumeric())
+        return coerceIntToLong(left, right) ? longinteger : integer;
+
+    report(invalidBinary, op);
+    return error;
 }
 Type checkMultiply( const Type& left, const Type& right ) 
 { 
-    return left;
+    return checkMultiplicative(left, right, "*");
 }
 Type checkDivide( const Type& left, const Type& right ) 
 { 
-    return left;
+    return checkMultiplicative(left, right, "/");
 }
 Type checkRemainder( const Type& left, const Type& right ) 
 { 
-    return left;
+    return checkMultiplicative(left, right, "%");
 }
 
 
@@ -539,8 +559,17 @@ Type checkTypeCast( const Type& left, const Type& right )
     const Type t1 = left.promote();
     const Type t2 = right.promote();
 
-    if ((t1.isNumeric() && t2.isNumeric()) || (t1.isPointer() && t2.isPointer()))
+    if ((t1.isNumeric() && t2.isNumeric()))
         return t1;
+        
+    if (t1.isPointer() && t2.isPointer())
+    {
+        if (!isIncompletePointer(t1) && !isIncompletePointer(t2))
+            return t1;
+
+        report(ptrIncomplete);
+        return error;
+    }
 
     report(invalidCast);
     return error;
