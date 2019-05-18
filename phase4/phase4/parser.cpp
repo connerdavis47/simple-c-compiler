@@ -325,9 +325,7 @@ static Type primaryExpression(bool lparenMatched)
 		}
     } 
 	else
-	{
 		error();
-	}
 
 	return expr;
 }

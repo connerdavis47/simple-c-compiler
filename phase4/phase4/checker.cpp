@@ -270,6 +270,13 @@ static bool isIncompletePointer(const Type& t)
 }
 
 
+static bool coerceIntToLong( const Type& t1, const Type& t2)
+{
+    return t1.isNumeric() && t2.isNumeric()
+        && (t1.specifier() == "long" || t2.specifier() == "long");
+}
+
+
 Type checkReturn( const Type& expr, const Type& type ) 
 { 
     if (expr.isError() || type.isError())
@@ -301,6 +308,9 @@ Type checkAssignment( const Type& left, const Type& right )
     {
         if (left == right)
             return left;
+
+        else if (coerceIntToLong(left, right))
+            return longinteger;
 
         report(invalidBinary, "=");
         return error;
@@ -581,7 +591,10 @@ Type checkFunction( const string& name, Parameters& args )
 
         for (unsigned i = 0; i < args.size(); ++i)
         {
-            if ((*params)[i] != args[i])
+            const Type t1 = (*params)[i].promote();
+            const Type t2 = args[i].promote();
+
+            if (t1 != t2 && !coerceIntToLong(t1, t2))
             {
                 report(invalidArgs);
                 return error;
