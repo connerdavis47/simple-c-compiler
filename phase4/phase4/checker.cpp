@@ -313,7 +313,6 @@ Type checkTest( const Type& expr )
 }
 Type checkAssignment( const Type& left, const Type& right, const bool& lvalue ) 
 { 
-    // cout << left << "\t=\t" << right << "\tlvalue? " << (lvalue ? "yes" : "no") << endl;
     if (left.isError() || right.isError())
         return error;
 
@@ -449,7 +448,6 @@ Type checkAdd( const Type& left, const Type& right )
 }
 Type checkSubtract( const Type& left, const Type& right ) 
 { 
-    cout << left << " - " << right << endl;
     if (left.isError() || right.isError())
         return error;
 
@@ -458,7 +456,7 @@ Type checkSubtract( const Type& left, const Type& right )
 
     if (t1.isPointer() && t2.isPointer())
     {
-        if (!isIncompletePointer(t1) && !isIncompletePointer(t2))
+        if (t1 == t2 && !isIncompletePointer(t1) && !isIncompletePointer(t2))
             return longinteger;
 
         report(ptrIncomplete);
