@@ -289,12 +289,17 @@ static Type primaryExpression( bool lparenMatched, bool& lvalue )
 
     if (lparenMatched)
 	{
+		// The type of a parenthesized expression is that of the expression, 
+		// and is an lvalue if the expression itself is an lvalue.
 		expression(lvalue);
 		match(')');
     } 
 	else if (lookahead == NUM) 
 	{
 		number();
+		// The type of a number depends on its value and suffix. 
+		// It has type int if it is unsuffixed and can be represented as such. 
+		// Otherwise, it has type long.
 		expr = isLong ? Type("long") : Type("int");
 
 		lvalue = false;

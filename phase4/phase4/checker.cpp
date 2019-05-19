@@ -277,16 +277,6 @@ Symbol* checkIdentifier( const string& name )
 
 
 /**
- * A pointer is complete if it refers to a structure that has previously been
- * defined. Otherwise, the pointer is considered incomplete.
- */
-static bool isCompletePointer( const Type& t )
-{
-  return !(t.isStruct() && t.indirection() == 1 && fields.count(t.specifier()) == 0);
-}
-
-
-/**
  * The result has type long if either operand has type long, and has type 
  * int otherwise.
  */
@@ -294,6 +284,16 @@ static Type coerceIntToLong( const Type& left, const Type& right )
 {
     return (left.specifier() == "long" || right.specifier() == "long") 
         ? longinteger : integer;
+}
+
+
+/**
+ * A pointer is complete if it refers to a structure that has previously been
+ * defined. Otherwise, the pointer is considered incomplete.
+ */
+static bool isCompletePointer( const Type& t )
+{
+  return !(t.isStruct() && t.indirection() == 1 && fields.count(t.specifier()) == 0);
 }
 
 
@@ -511,6 +511,9 @@ Type checkSubtract( const Type& left, const Type& right )
 
 Type checkMultiplicative( const Type& left, const Type& right, const std::string& op ) 
 { 
+    if (left.isError() || right.isError())
+        return error;
+
     // The types of both operands must be numeric
     // If either operand has type long, then the result has type long. Otherwise, 
     // the result has type int.
@@ -550,6 +553,9 @@ Type checkNegate( const Type& expr )
 }
 Type checkNot( const Type& expr ) 
 { 
+    if (expr.isError())
+        return error;
+        
     // The operand in a ! expression must have a scalar type
     if (expr.isScalar())
         return integer; /* and the result has type int */
@@ -705,13 +711,13 @@ Type checkStructField( const Type& type, const string field )
     report(invalid_binary, ".");
     return error;
 }
-Type checkStructPointerField( const Type& left, const string field ) 
+Type checkStructPointerField( const Type& type, const string field ) 
 { 
-    if (left.isError())
+    if (type.isError())
         return error;
 
     // (after any promotion)
-    const Type t1 = left.promote();
+    const Type t1 = type.promote();
 
     // The operand in an indirect structure field reference must be a pointer to a 
     // structure type
@@ -771,7 +777,6 @@ Type checkFunction( const string& name, Parameters& args )
         report(expected_func);
         return error;
     }
-
 
     // if the parameters have been specified 
     Parameters* params = t1.parameters();
