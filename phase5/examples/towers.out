@@ -1,0 +1,22 @@
+value = 3
+call_towers:n = 3
+call_towers:n = 2
+call_towers:n = 1
+move a peg from 1 to 2
+call_towers:n = 1
+move a peg from 1 to 3
+call_towers:n = 2
+call_towers:n = 1
+move a peg from 2 to 3
+call_towers:n = 1
+move a peg from 1 to 2
+call_towers:n = 3
+call_towers:n = 2
+call_towers:n = 1
+move a peg from 3 to 1
+call_towers:n = 1
+move a peg from 3 to 2
+call_towers:n = 2
+call_towers:n = 1
+move a peg from 1 to 2
+call_towers:n = 1
