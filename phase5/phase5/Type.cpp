@@ -19,7 +19,9 @@
  *		- the error type
  */
 
+# include "platform.h"
 #include "Type.h"
+
 #include <cassert>
 
 using namespace std;
@@ -299,30 +301,34 @@ Type Type::deref() const
 
 unsigned long Type::size() const
 {
+    assert(!isFunction() && !isError());
+
     const unsigned count = isArray() ? length() : 1;
 
     if (_indirection > 0)
-        return count * 8;
+        return count * SIZEOF_PTR;
 
     if (_specifier == "int")
-        return count * 4;
+        return count * SIZEOF_INT;
 
     if (_specifier == "long")
-        return count * 8;
+        return count * SIZEOF_LONG;
 
     return 0;
 }
 
 unsigned Type::alignment() const
 {
+    assert(!isFunction() && !isError());
+
     if (_indirection > 0)
-        return 8;
+        return SIZEOF_PTR;
 
     if (_specifier == "int")
-        return 4;
+        return SIZEOF_INT;
 
     if (_specifier == "long")
-        return 8;
+        return SIZEOF_LONG;
 
     return 0;
 }

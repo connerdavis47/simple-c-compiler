@@ -7,7 +7,7 @@
 
 # if defined (__linux__)
 
-# define STACK_ALIGNMENT 4
+# define STACK_ALIGNMENT 16
 # define label_prefix ".L"
 
 # else

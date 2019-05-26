@@ -355,7 +355,7 @@ public:
     Block(Scope *decls, const Statements &stmts);
     Scope *declarations() const;
     virtual void write(ostream &ostr) const;
-    virtual void allocate(int& offset) const;
+    void allocate(int& offset) const override;
     void generate() override;
 };
 
@@ -405,7 +405,7 @@ class Function : public Node {
 public:
     Function(const Symbol *id, Block *body);
     virtual void write(ostream &ostr) const;
-    virtual void allocate(int& offset) const;
+    void allocate(int& offset) const override;
     void generate() override;
 };
 

@@ -2,12 +2,17 @@
 # include "platform.h"
 
 # include <iostream>
+# include <list>
+# include <map>
+# include <set>
 # include <sstream>
 # include <queue>
 
 using std::cerr;
 using std::cout;
 using std::endl;
+using std::list;
+using std::map;
 using std::ostream;
 using std::string;
 using std::stringstream;
@@ -15,6 +20,12 @@ using std::queue;
 
 static unsigned num_args;
 static queue<string> chunks;
+static const string registers[] = {
+    "e15d", "e14d", "e13d", "e12d", "e11d", "e10"
+};
+static const string call_registers[] = {
+    "edi", "esi", "edx", "ecx", "e8d", "e9d"
+};
 
 void Simple::generate()
 {
@@ -49,19 +60,14 @@ void Call::generate()
 {
     stringstream ss;
 
-    unsigned num_bytes = 0;
-
-    for (int i = _args.size() - 1; i >= 0; --i)
+    for (unsigned i = 0; i < _args.size(); ++i)
     {
         _args[i]->generate();
-        ss << "\tpmovl\t" << _args[i]->_text<< endl;
-        num_bytes += _args[i]->type().size();
+        ss << "\tmovl\t" << _args[i]->_text << ", %" << call_registers[i] << endl;
     }
 
+    ss << "\tmovl\t$0, %eax" << endl;
     ss << "\tcall\t" << _id->name() << endl;
-
-    if (num_bytes > 0)
-        ss << "\taddq\t$" << num_bytes << ", %rsp" << endl;
 
     _text = ss.str();
 }
@@ -95,12 +101,14 @@ void Function::generate()
 {
     stringstream ss;
 
-    int offset = 0;
+    int offset = 0, tmp_offset = 0;
 
     allocate(offset);
 
     num_args = 0;
+    tmp_offset = offset;
     _body->generate();
+    offset = tmp_offset;
 
     offset -= num_args * SIZEOF_ARG;
     while ((offset - ARG_OFFSET) % STACK_ALIGNMENT)
@@ -115,7 +123,8 @@ void Function::generate()
 
     ss << _body->_text;
 
-    ss << "\tpopq\t%rbp" << endl;
+    ss << "\tmovl\t$0, %eax" << endl;
+    ss << "\tleave" << endl;
     ss << "\tret" << endl << endl;
     
     if (offset != 0)
@@ -126,6 +135,8 @@ void Function::generate()
 
 void generate(const Symbols& symbols)
 {
+    cout << "\t.text" << endl;
+
     for (unsigned i = 0; i < symbols.size(); ++i)
     {
         if (symbols[i]->type().isFunction())
@@ -136,8 +147,7 @@ void generate(const Symbols& symbols)
         else
         {
             cout << "\t.comm\t" << symbols[i]->name();
-            cout << "," << symbols[i]->type().size();
-            cout << "," << symbols[i]->type().alignment() << endl;
+            cout << "," << symbols[i]->type().size() << endl;
         }
     }
 

@@ -1,5 +1,6 @@
 # include "math.h"
 
+# include "platform.h"
 # include "Tree.h"
 
 using std::min;
@@ -7,8 +8,6 @@ using std::min;
 void Block::allocate(int& offset) const
 {
     Symbols symbols = _decls->symbols();
-
-    int offsetMark;
 
     for (unsigned i = 0; i < symbols.size(); ++i)
     {
@@ -19,7 +18,7 @@ void Block::allocate(int& offset) const
         }
     }
 
-    offsetMark = offset;
+    int offsetMark = offset;
 
     for (unsigned i = 0; i < _stmts.size(); ++i)
     {
@@ -32,16 +31,18 @@ void Block::allocate(int& offset) const
 void Function::allocate(int& offset) const
 {
     const Parameters* params = _id->type().parameters();
-    Symbols symbols = _body->declarations()->symbols();
+    const Symbols& symbols = _body->declarations()->symbols();
 
-    offset = 8;
-
-    for (unsigned i = 0; i < params->size(); ++i)
+    for (unsigned i = 0; i < symbols.size(); ++i)
     {
-        symbols[i]->_offset = offset;
-        offset += 8;
+        if (i < 6 || i >= params->size())
+        {
+            offset -= symbols[i]->type().size();
+            symbols[i]->_offset = offset;
+        }
+        else
+            symbols[i]->_offset = STACK_ALIGNMENT + SIZEOF_ARG * (i - 6);        
     }
 
-    offset = 0;
     _body->allocate(offset);
 }
