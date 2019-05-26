@@ -44,6 +44,8 @@ protected:
     Node() {}
 
 public:
+    string _text;
+
     virtual ~Node() {}
     virtual void write(ostream &ostr) const = 0;
     virtual void allocate(int& offset) const {}   
@@ -68,11 +70,10 @@ protected:
     Expression(const Type &type);
 
 public:
-    string _operand;
-
     const Type &type() const;
     bool lvalue() const;
     virtual bool isNumber(unsigned long &value) const;
+    virtual void generate() {}
 };
 
 
@@ -115,7 +116,7 @@ public:
     Identifier(const Symbol *symbol);
     const Symbol *symbol() const;
     virtual void write(ostream &ostr) const;
-    virtual void generate();
+    void generate() override;
 };
 
 
@@ -130,7 +131,7 @@ public:
     const string &value() const;
     virtual void write(ostream &ostr) const;
     virtual bool isNumber(unsigned long &value) const;
-    virtual void generate();
+    void generate() override;
 };
 
 
@@ -143,7 +144,7 @@ class Call : public Expression {
 public:
     Call(const Symbol *id, const Expressions &args, const Type &type);
     virtual void write(ostream &ostr) const;
-    virtual void generate();
+    void generate() override;
 };
 
 
@@ -329,7 +330,7 @@ class Assignment : public Statement {
 public:
     Assignment(Expression *left, Expression *right);
     virtual void write(ostream &ostr) const;
-    virtual void generate();
+    void generate() override;
 };
 
 
@@ -355,7 +356,7 @@ public:
     Scope *declarations() const;
     virtual void write(ostream &ostr) const;
     virtual void allocate(int& offset) const;
-    virtual void generate();
+    void generate() override;
 };
 
 
@@ -391,6 +392,7 @@ class Simple : public Statement {
 public:
     Simple(Expression *expr);
     virtual void write(ostream &ostr) const;
+    void generate() override;
 };
 
 
@@ -404,7 +406,7 @@ public:
     Function(const Symbol *id, Block *body);
     virtual void write(ostream &ostr) const;
     virtual void allocate(int& offset) const;
-    virtual void generate();
+    void generate() override;
 };
 
 # endif /* TREE_H */

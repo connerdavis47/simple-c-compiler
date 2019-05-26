@@ -3,18 +3,24 @@
 
 # include <iostream>
 # include <sstream>
+# include <queue>
 
+using std::cerr;
 using std::cout;
 using std::endl;
 using std::ostream;
 using std::string;
 using std::stringstream;
+using std::queue;
 
 static unsigned num_args;
+static queue<string> chunks;
 
-ostream& operator << (ostream& ostr, Expression* expr)
+void Simple::generate()
 {
-    return ostr << expr->_operand;
+    _expr->generate();
+
+    _text = _expr->_text;
 }
 
 void Identifier::generate()
@@ -25,9 +31,9 @@ void Identifier::generate()
         ss << _symbol->_offset << "(%rbp)";
 
     else
-        ss << global_prefix << _symbol->name();
+        ss << _symbol->name() << "(%rip)";
 
-    _operand = ss.str();
+    _text = ss.str();
 }
 
 void Number::generate()
@@ -36,73 +42,62 @@ void Number::generate()
 
     ss << "$" << _value;
 
-    _operand = ss.str();
+    _text = ss.str();
 }
-
-# if defined (__linux__)
 
 void Call::generate()
 {
+    stringstream ss;
+
     unsigned num_bytes = 0;
 
     for (int i = _args.size() - 1; i >= 0; --i)
     {
         _args[i]->generate();
-        cout << "\tpushq\t" << _args[i] << endl;
+        ss << "\tpmovl\t" << _args[i]->_text<< endl;
         num_bytes += _args[i]->type().size();
     }
 
-    cout << "\tcall\t" << _id->name() << endl;
+    ss << "\tcall\t" << _id->name() << endl;
 
     if (num_bytes > 0)
-        cout << "\taddq\t$" << num_bytes << ", %rsp" << endl;
+        ss << "\taddq\t$" << num_bytes << ", %rsp" << endl;
+
+    _text = ss.str();
 }
-
-# elif defined (__APPLE__)
-
-void Call::generate()
-{
-    if (_args.size() > num_args)
-        num_args = _args.size();
-
-    for (int i = _args.size() - 1; i >= 0; --i)
-    {
-        _args[i]->generate();
-
-        cout << "\tmovq\t" << _args[i] << ", %rax" << endl;
-        cout << "\tmovq\t%rax, " << (i * SIZEOF_ARG) << "(%rsp)" << endl;
-    }
-
-    cout << "\tcall\t" << global_prefix << _id->name() << endl;
-}
-
-# endif
 
 void Assignment::generate()
 {
+    stringstream ss;
+
     _left->generate();
     _right->generate();
 
-    cout << "\tmovl\t" << _right << ", %rax" << endl;
-    cout << "\tmovl\t%rax, " << _left << endl;
+    ss << "\tmovl\t" << _right->_text << ", " << _left->_text << endl;
+
+    _text = ss.str();
 }
 
 void Block::generate()
 {
+    stringstream ss;
+    
     for (unsigned i = 0; i < _stmts.size(); ++i)
+    {
         _stmts[i]->generate();
+        ss << _stmts[i]->_text;
+    }
+
+    _text = ss.str();
 }
 
 void Function::generate()
 {
+    stringstream ss;
+
     int offset = 0;
 
     allocate(offset);
-
-    cout << global_prefix << _id->name() << ":" << endl;
-    cout << "\tpushq\t%rbp" << endl;
-    cout << "\tmovq\t%rsp, %rbp" << endl;
-    cout << "\tsubq\t$" << _id->name() << ".size, %rsp" << endl;
 
     num_args = 0;
     _body->generate();
@@ -111,23 +106,44 @@ void Function::generate()
     while ((offset - ARG_OFFSET) % STACK_ALIGNMENT)
         --offset;
 
-    cout << "\tmovq\t%rbp, %rsp" << endl;
-    cout << "\tpopq\t%rbp" << endl;
-    cout << "\tret" << endl << endl;
+    ss << _id->name() << ":" << endl;
+    ss << "\tpushq\t%rbp" << endl;
+    ss << "\tmovq\t%rsp, %rbp" << endl;
+
+    if (offset != 0)
+        ss << "\tsubq\t$" << _id->name() << ".size, %rsp" << endl;
+
+    ss << _body->_text;
+
+    ss << "\tpopq\t%rbp" << endl;
+    ss << "\tret" << endl << endl;
     
-    cout << "\t.globl\t" << global_prefix << _id->name() << endl;
-    cout << "\t.set\t" << _id->name() << ".size, " << -offset << endl << endl;
+    if (offset != 0)
+        ss << "\t.set\t" << _id->name() << ".size, " << -offset;
+
+    chunks.push(ss.str());
 }
 
 void generate(const Symbols& symbols)
 {
-    if (symbols.size() > 0)
-        cout << "\t.data" << endl;
-
     for (unsigned i = 0; i < symbols.size(); ++i)
     {
-        cout << "\t.comm\t" << global_prefix << symbols[i]->name();
-        cout << ", " << symbols[i]->type().size();
-        cout << ", " << symbols[i]->type().alignment() << endl;
+        if (symbols[i]->type().isFunction())
+        {
+            cout << "\t.globl\t" << symbols[i]->name() << endl;
+            cout << "\t.type\t" << symbols[i]->name() << ", @function" << endl;
+        }
+        else
+        {
+            cout << "\t.comm\t" << symbols[i]->name();
+            cout << "," << symbols[i]->type().size();
+            cout << "," << symbols[i]->type().alignment() << endl;
+        }
+    }
+
+    while (chunks.size() > 0)
+    {
+        cout << chunks.front() << endl;
+        chunks.pop();
     }
 }

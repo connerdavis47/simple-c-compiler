@@ -1,7 +1,7 @@
-slns/
-
-**/.DS_Store
-**/*.tar
-**/*.o
-**/*.dSYM/
-**/scc
+.DS_Store
+scc
+*.tar
+*.o
+*.out
+*.s
+*.dSYM/

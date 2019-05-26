@@ -301,7 +301,7 @@ unsigned long Type::size() const
 {
     const unsigned count = isArray() ? length() : 1;
 
-    if (isPointer())
+    if (_indirection > 0)
         return count * 8;
 
     if (_specifier == "int")
@@ -315,7 +315,7 @@ unsigned long Type::size() const
 
 unsigned Type::alignment() const
 {
-    if (isPointer())
+    if (_indirection > 0)
         return 8;
 
     if (_specifier == "int")

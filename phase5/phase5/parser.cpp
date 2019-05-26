@@ -962,7 +962,7 @@ static void globalOrFunction()
 
                 if (numerrors == 0)
                 {
-                    function->write(cout);
+                    function->write(cerr);
                     cout << endl;
                     function->generate();
                 }
