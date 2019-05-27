@@ -60,10 +60,10 @@ void Call::generate()
 {
     stringstream ss;
 
-    for (unsigned i = 0; i < _args.size(); ++i)
+    for (int i = _args.size() - 1; i >= 0; --i)
     {
         _args[i]->generate();
-        ss << "\tmovl\t" << _args[i]->_text << ", %" << call_registers[i] << endl;
+        ss << "\tmovl\t" << _args[i]->_text << ", " << "%" << call_registers[i] << endl; 
     }
 
     ss << "\tmovl\t$0, %eax" << endl;
@@ -101,34 +101,39 @@ void Function::generate()
 {
     stringstream ss;
 
-    int offset = 0, tmp_offset = 0;
-
+    int offset = 0;
     allocate(offset);
 
     num_args = 0;
-    tmp_offset = offset;
     _body->generate();
-    offset = tmp_offset;
 
     offset -= num_args * SIZEOF_ARG;
     while ((offset - ARG_OFFSET) % STACK_ALIGNMENT)
         --offset;
 
     ss << _id->name() << ":" << endl;
+    ss << "# Function::prologue" << endl;
     ss << "\tpushq\t%rbp" << endl;
     ss << "\tmovq\t%rsp, %rbp" << endl;
 
     if (offset != 0)
         ss << "\tsubq\t$" << _id->name() << ".size, %rsp" << endl;
 
+    for (int i = 0; i < _id->type().parameters()->size(); ++i)
+    {
+        ss << "\tmovl\t" << "%" << call_registers[i] << ", " << _body->declarations()->symbols().at(i)->_offset << "(%rbp)" << endl; 
+    }
+
+    ss << "# Function::body" << endl;
     ss << _body->_text;
 
+    ss << "# Function::epilogue" << endl;
     ss << "\tmovl\t$0, %eax" << endl;
     ss << "\tleave" << endl;
     ss << "\tret" << endl << endl;
     
     if (offset != 0)
-        ss << "\t.set\t" << _id->name() << ".size, " << -offset;
+        ss << "\t.set\t" << _id->name() << ".size, " << -offset << endl;
 
     chunks.push(ss.str());
 }
@@ -150,6 +155,8 @@ void generate(const Symbols& symbols)
             cout << "," << symbols[i]->type().size() << endl;
         }
     }
+
+    cout << endl;
 
     while (chunks.size() > 0)
     {

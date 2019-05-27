@@ -1,8 +1,11 @@
-# include "math.h"
+# include <iostream>
+# include <math.h>
 
 # include "platform.h"
 # include "Tree.h"
 
+using std::cout;
+using std::endl;
 using std::min;
 
 void Block::allocate(int& offset) const
