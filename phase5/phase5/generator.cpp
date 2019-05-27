@@ -24,7 +24,7 @@ static const string registers[] = {
     "e15d", "e14d", "e13d", "e12d", "e11d", "e10"
 };
 static const string call_registers[] = {
-    "edi", "esi", "edx", "ecx", "e8d", "e9d"
+    "edi", "esi", "edx", "ecx", "r8d", "r9d"
 };
 
 void Simple::generate()
@@ -63,6 +63,7 @@ void Call::generate()
     for (int i = _args.size() - 1; i >= 0; --i)
     {
         _args[i]->generate();
+
         ss << "\tmovl\t" << _args[i]->_text << ", " << "%" << call_registers[i] << endl; 
     }
 
