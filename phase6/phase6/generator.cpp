@@ -32,6 +32,9 @@ static Label* return_label;
 static vector<string> strings;
 
 
+# define DEBUG_MODE 1
+
+
 /* This needs to be zero for the next phase. */
 
 # define SIMPLE_PROLOGUE 0
@@ -63,7 +66,7 @@ static Register* r15    = new Register("%r15", "%r15d", "%r15b");
 
 static Registers registers;
 static Registers parameters = { rdi, rsi, rdx, rcx, r8, r9 };
-static Registers caller_saved = { rax, rdi, rsi, rdx, rcx, r8, r9, r10, r11 };
+static Registers caller_saved = { r11, r10, r9, r8, rcx, rdx, rsi, rdi, rax };
 
 # if CALLEE_SAVED
 static Registers callee_saved = { rbx, r12, r13, r14, r15 };
@@ -82,6 +85,20 @@ Register* get_reg()
 
     load(nullptr, registers[0]);
     return registers[0];
+}
+
+
+static void debug_open(string id)
+{
+    if (DEBUG_MODE)
+        cout << "\t# === " << id << endl;
+}
+
+
+static void debug_close(string id)
+{
+    if (DEBUG_MODE)
+        cout << "\t# --- " << id << endl;
 }
 
 
@@ -285,7 +302,7 @@ void GreaterOrEqual::test(const Label& label, bool onTrue)
 
 void Equal::test(const Label& label, bool onTrue)
 {
-    cout << "\t# === EQL" << endl;
+    debug_open("EQL");
 
     _left->generate();
     _right->generate();
@@ -297,7 +314,7 @@ void Equal::test(const Label& label, bool onTrue)
     cout << _right << ", " << _left << endl;
     cout << (onTrue ? "\tje\t" : "\tjne\t") << label << endl;
 
-    cout << "\t# --- EQL" << endl;
+    debug_close("EQL");
 }
 
 
@@ -317,16 +334,16 @@ void NotEqual::test(const Label& label, bool onTrue)
 
 void LogicalOr::test(const Label& label, bool onTrue)
 {
-    cout << "\t# === OR" << endl;
+    debug_open("OR");
 
     Label test;
 
     _left->test(test, true);
     _right->test(label, false);
 
-    cout << test << ":" << endl;
+    cout << test << ":";
 
-    cout << "\t# --- OR" << endl;
+    debug_close("OR");
 }
 
 
@@ -344,7 +361,7 @@ void LogicalAnd::test(const Label& label, bool onTrue)
 
 void Call::generate()
 {
-    cout << "\t# === CALL" << endl;
+    debug_open("CALL");
 
     unsigned long value, size, bytesPushed = 0;
 
@@ -371,7 +388,7 @@ void Call::generate()
 
     for (int i = _args.size() - 1; i >= 0; -- i) 
     {
-        cout << "\t# === ARG " << endl;
+        debug_open("ARG");
 
         size = _args[i]->type().size();
 
@@ -400,7 +417,7 @@ void Call::generate()
 
         assign(_args[i], nullptr);
 
-        cout << "\t# --- ARG" << endl;
+        debug_close("ARG");
     }
 
 
@@ -427,7 +444,7 @@ void Call::generate()
 
     assign(this, rax);
 
-    cout << "\t# --- CALL" << endl;
+    debug_close("CALL");
 }
 
 
@@ -510,7 +527,8 @@ void Function::generate()
 
     cout << global_prefix << funcname << ":" << endl;
 
-    cout << "\t# === PROLOGUE" << endl;
+    debug_open("PROLOGUE");
+
     cout << "\tpushq\t%rbp" << endl;
 
     for (unsigned i = 0; i < callee_saved.size(); i ++)
@@ -529,7 +547,7 @@ void Function::generate()
 	    cout << "\tsubq\t%rax, %rsp" << endl;
     }
 
-    cout << "\t# --- PROLOGUE" << endl;
+    debug_close("PROLOGUE");
 
 
     /* Spill any parameters. */
@@ -549,7 +567,7 @@ void Function::generate()
     registers = (_hasCall && callee_saved.size() ? callee_saved : caller_saved);
     temp_offset = offset;
     _body->generate();
-    //offset = temp_offset;
+    offset = temp_offset;
 
     cout << *return_label << ":" << endl;
     cout << endl << global_prefix << funcname << ".exit:" << endl;
@@ -607,7 +625,7 @@ void generateGlobals(Scope* scope)
 
 void Assignment::generate()
 {
-    cout << "\t# === ASSIGN" << endl;
+    debug_open("ASSIGN");
 
     _left->generate();
     _right->generate();
@@ -615,40 +633,40 @@ void Assignment::generate()
     // if left = scalar && right = number
     cout << "\tmov" << suffix(_left) << _right << ", " << _left << endl;
 
-    cout << "\t# --- ASSIGN" << endl; 
+    debug_close("ASSIGN"); 
 }
 
 void Return::generate()
 {
-    cout << "\t# === RET" << endl; 
+    debug_open("RET"); 
 
     _expr->generate();
 
-    cout << "\tmovl\t" << _expr << ", %eax" << endl;
+    cout << "\tmovl\t" << _expr << ", %eax";
     cout << "\tjmp\t" << *return_label << endl;
 
-    cout << "\t# --- RET" << endl;
+    debug_close("RET");
 }
 
 void While::generate()
 {
-    cout << "\t# === WHILE" << endl;
+    debug_open("WHILE");
 
     Label loop, exit;
 
-    cout << loop << ":" << endl;
+    cout << loop << ":";
 
     _expr->test(exit, false);
     _stmt->generate();
 
     cout << "\tjmp\t" << loop << endl;
 
-    cout << "\t# --- WHILE" << endl;
+    debug_close("WHILE");
 }
 
 void If::generate()
 {
-    cout << "\t# === IF" << endl;
+    debug_open("IF");
 
     Label skip;
 
@@ -659,14 +677,14 @@ void If::generate()
 
     _thenStmt->generate();
 
-    cout << skip << ":" << endl;
+    cout << skip << ":";
 
-    cout << "\t# --- IF" << endl;
+    debug_close("IF");
 }
 
 void Subtract::generate()
 {
-    cout << "\t# === SUB" << endl;
+    debug_open("SUB");
     
     _left->generate();
     _right->generate();
@@ -680,12 +698,12 @@ void Subtract::generate()
     assign(_right, nullptr);
     assign(this, _left->_register);
 
-    cout << "\t# --- SUB" << endl; 
+    debug_close("SUB"); 
 }
 
 void Add::generate()
 {
-    cout << "\t# === ADD" << endl;
+    debug_open("ADD");
     
     _left->generate();
     _right->generate();
@@ -699,33 +717,44 @@ void Add::generate()
     assign(_right, nullptr);
     assign(this, _left->_register);
 
-    cout << "\t# --- ADD" << endl; 
+    debug_close("ADD"); 
 }
 
 void Remainder::generate()
 {
-    cout << "\t# === REM" << endl;
+    debug_open("REM");
 
     _left->generate();
     _right->generate();
 
-    if (_left->_register == nullptr)
-        load(_left, get_reg());
-
+    cout << "\tmovl\t" << _left << ", %eax" << endl;
     cout << "\tcltd" << endl;
-    cout << "\tidivl\t" << _right << endl;
+    cout << "\tidiv" << suffix(_right) << _right << endl;
 
-    assign(_right, nullptr);
-    assign(this, _left->_register);
+    assign(this, rdx);
 
-    cout << "\tmov" << suffix(_left) << "%edx, " << _left << endl;
-
-    cout << "\t# --- REM" << endl;
+    debug_close("REM");
 }
 
 void Divide::generate()
 {
-    cout << "\t# === DIV" << endl;
+    debug_open("DIV");
+
+    _left->generate();
+    _right->generate();
+
+    cout << "\tmovl\t" << _left << ", %eax" << endl;
+    cout << "\tcltd" << endl;
+    cout << "\tidiv" << suffix(_right) << _right << endl;
+
+    assign(this, rax);
+
+    debug_close("DIV");
+}
+
+void Multiply::generate()
+{
+    debug_open("MUL");
 
     _left->generate();
     _right->generate();
@@ -733,18 +762,12 @@ void Divide::generate()
     if (_left->_register == nullptr)
         load(_left, get_reg());
 
-    cout << "\tcltd" << endl;
-    cout << "\tidivl\t" << _right << endl;
+    cout << "\timul" << suffix(_right) << _right << ", " << _left << endl;
 
     assign(_right, nullptr);
     assign(this, _left->_register);
 
-    cout << "\t# --- DIV" << endl;
-}
-
-void Multiply::generate()
-{
-
+    debug_close("MUL");
 }
 
 void Cast::generate()
@@ -754,7 +777,7 @@ void Cast::generate()
 
 void Address::generate()
 {
-    cout << "\t# === ADDR" << endl;
+    debug_open("ADDR");
 
     _expr->generate();
 
@@ -765,7 +788,7 @@ void Address::generate()
     assign(this, _expr->_register);
     assign(_expr, nullptr);
 
-    cout << "\t# --- ADDR" << endl;
+    debug_close("ADDR");
 }
 
 void Dereference::generate()
@@ -774,7 +797,7 @@ void Dereference::generate()
 
 void Negate::generate()
 {
-    cout << "\t# === NEG" << endl;
+    debug_open("NEG");
 
     _expr->generate();
 
@@ -783,14 +806,14 @@ void Negate::generate()
 
     cout << "\tneg" << suffix(_expr) << "\t" << _expr << endl;
 
-    cout << "\t# --- NEG" << endl;
+    debug_close("NEG");
 }
 
 void Not::generate()
 {
-    cout << "\t# === NOT" << endl;
+    debug_open("NOT");
 
-    cout << "\t# --- NOT" << endl;
+    debug_close("NOT");
 }
 
 void Field::generate()

@@ -35,7 +35,7 @@ unsigned long Type::size() const
 
     unsigned long count = (_kind == ARRAY ? _length : 1);
 
-    if (_indirection > 0 || _specifier == "char")
+    if (_indirection > 0)
 	    return count * SIZEOF_PTR;
 
     if (_specifier == "long")
