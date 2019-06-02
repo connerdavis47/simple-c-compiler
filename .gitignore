@@ -1,7 +1,10 @@
 .DS_Store
-scc
 *.tar
 *.o
 *.out
 *.s
 *.dSYM/
+
+.idea/
+.vscode/
+settings.json
