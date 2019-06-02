@@ -91,14 +91,14 @@ Register* get_reg()
 static void debug_open(string id)
 {
     if (DEBUG_MODE)
-        cout << "\t# === " << id << endl;
+        cout << "\t# ( " << id << endl;
 }
 
 
 static void debug_close(string id)
 {
     if (DEBUG_MODE)
-        cout << "\t# --- " << id << endl;
+        cout << "\t# ... )" << endl;
 }
 
 
@@ -236,16 +236,13 @@ void LessThan::test(const Label& label, bool onTrue)
 {
     _left->generate();
     _right->generate();
-
+    
     if (_left->_register == nullptr)
         load(_left, get_reg());
 
-    cout << "\tcmp" << suffix(_left);
-    cout << _right << ", " << _left << endl;
-    cout << (onTrue ? "\tjl\t" : "\tjge\t") << label << endl;
-
-    assign(_left, nullptr);
-    assign(_right, nullptr);
+    cout << "\tcmp" << suffix(_left) << _right << ", " << _left << endl;
+    cout << "\tsetl\t" << _left->_register->as_byte() << endl;
+    cout << "\tmovzbl\t" << _left->_register->as_byte() << ", " << _left->_register->as_lword() << endl;
 }
 
 
@@ -253,16 +250,13 @@ void GreaterThan::test(const Label& label, bool onTrue)
 {
     _left->generate();
     _right->generate();
-
+    
     if (_left->_register == nullptr)
         load(_left, get_reg());
 
-    cout << "\tcmp" << suffix(_left);
-    cout << _right << ", " << _left << endl;
-    cout << (onTrue ? "\tjg\t" : "\tjle\t") << label << endl;
-
-    assign(_left, nullptr);
-    assign(_right, nullptr);
+    cout << "\tcmp" << suffix(_left) << _right << ", " << _left << endl;
+    cout << "\tsetg\t" << _left->_register->as_byte() << endl;
+    cout << "\tmovzbl\t" << _left->_register->as_byte() << ", " << _left->_register->as_lword() << endl;
 }
 
 
@@ -270,16 +264,13 @@ void LessOrEqual::test(const Label& label, bool onTrue)
 {
     _left->generate();
     _right->generate();
-
+    
     if (_left->_register == nullptr)
         load(_left, get_reg());
 
-    cout << "\tcmp" << suffix(_left);
-    cout << _right << ", " << _left << endl;
-    cout << (onTrue ? "\tjle\t" : "\tjg\t") << label << endl;
-
-    assign(_left, nullptr);
-    assign(_right, nullptr);
+    cout << "\tcmp" << suffix(_left) << _right << ", " << _left << endl;
+    cout << "\tsetle\t" << _left->_register->as_byte() << endl;
+    cout << "\tmovzbl\t" << _left->_register->as_byte() << ", " << _left->_register->as_lword() << endl;
 }
 
 
@@ -287,16 +278,13 @@ void GreaterOrEqual::test(const Label& label, bool onTrue)
 {
     _left->generate();
     _right->generate();
-
+    
     if (_left->_register == nullptr)
         load(_left, get_reg());
 
-    cout << "\tcmp" << suffix(_left);
-    cout << _right << ", " << _left << endl;
-    cout << (onTrue ? "\tjge\t" : "\tjl\t") << label << endl;
-
-    assign(_left, nullptr);
-    assign(_right, nullptr);
+    cout << "\tcmp" << suffix(_left) << _right << ", " << _left << endl;
+    cout << "\tsetge\t" << _left->_register->as_byte() << endl;
+    cout << "\tmovzbl\t" << _left->_register->as_byte() << ", " << _left->_register->as_lword() << endl;
 }
 
 
@@ -642,7 +630,8 @@ void Return::generate()
 
     _expr->generate();
 
-    cout << "\tmovl\t" << _expr << ", %eax";
+    cout << "\tmov" << suffix(_expr) << _expr << ", ";
+    cout << (_expr->type().size() == SIZEOF_LONG ? rax->as_qword() : rax->as_lword()) << endl;
     cout << "\tjmp\t" << *return_label << endl;
 
     debug_close("RET");
@@ -654,12 +643,16 @@ void While::generate()
 
     Label loop, exit;
 
-    cout << loop << ":";
+    cout << loop << ":" << endl;
 
-    _expr->test(exit, false);
+    _expr->test(exit, true);
+
+    cout << "\tje\t" << exit << endl;
+
     _stmt->generate();
 
     cout << "\tjmp\t" << loop << endl;
+    cout << exit << ":" << endl;
 
     debug_close("WHILE");
 }
@@ -727,7 +720,8 @@ void Remainder::generate()
     _left->generate();
     _right->generate();
 
-    cout << "\tmovl\t" << _left << ", %eax" << endl;
+    load(_left, rax);
+
     cout << "\tcltd" << endl;
     cout << "\tidiv" << suffix(_right) << _right << endl;
 
@@ -743,7 +737,8 @@ void Divide::generate()
     _left->generate();
     _right->generate();
 
-    cout << "\tmovl\t" << _left << ", %eax" << endl;
+    load(_left, rax);
+
     cout << "\tcltd" << endl;
     cout << "\tidiv" << suffix(_right) << _right << endl;
 
@@ -793,6 +788,13 @@ void Address::generate()
 
 void Dereference::generate()
 {
+    debug_open("DEREF");
+
+    _expr->generate();
+
+    cout << "\tmovl\t" << _expr << ", %eax" << endl;
+
+    debug_close("DEREF");
 }
 
 void Negate::generate()
@@ -804,7 +806,9 @@ void Negate::generate()
     if (_expr->_register == nullptr)
         load(_expr, get_reg());
 
-    cout << "\tneg" << suffix(_expr) << "\t" << _expr << endl;
+    cout << "\tneg" << suffix(_expr) << _expr << endl;
+
+    assign(this, _expr->_register);
 
     debug_close("NEG");
 }
