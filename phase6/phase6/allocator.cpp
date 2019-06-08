@@ -35,7 +35,7 @@ unsigned long Type::size() const
 
     unsigned long count = (_kind == ARRAY ? _length : 1);
 
-    if (_indirection > 0)
+    if (_indirection > 0 || _specifier == "char")
 	    return count * SIZEOF_PTR;
 
     if (_specifier == "long")
@@ -85,7 +85,7 @@ unsigned Type::alignment() const
 {
     assert(_kind != FUNCTION && _kind != ERROR);
 
-    if (_indirection > 0 || _specifier == "char")
+    if (_indirection > 0)
 	    return ALIGNOF_PTR;
 
     if (_specifier == "long")
@@ -127,11 +127,14 @@ void Block::allocate(int& offset) const
     symbols = _decls->symbols();
 
     for (i = 0; i < symbols.size(); ++ i)
+    {
+        cerr << "# alloc: " << symbols[i]->type() << " " << symbols[i]->name() << "\t\t:= " << symbols[i]->type().size() << " bytes" << endl;
         if (symbols[i]->_offset == 0) 
         {
             offset -= symbols[i]->type().size();
             symbols[i]->_offset = offset;
         }
+    }
 
     saved = offset;
 

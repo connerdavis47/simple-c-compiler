@@ -949,7 +949,7 @@ static void globalOrFunction()
 
 		function = new Function(symbol, new Block(decls, stmts));
 		function->write(cerr);
-		cerr << endl;
+		cerr << endl << endl;
 
 		if (numerrors == 0)
 		    function->generate();
@@ -977,6 +977,6 @@ int main()
     while (lookahead != DONE)
 	globalOrFunction();
 
-    generateGlobals(closeScope());
+    generate_globals(closeScope());
     exit(EXIT_SUCCESS);
 }

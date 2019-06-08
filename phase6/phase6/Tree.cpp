@@ -20,6 +20,7 @@
  */
 
 # include "Tree.h"
+
 # include <sstream>
 # include <cstdlib>
 
@@ -57,7 +58,7 @@ const Type &Expression::type() const
  * Description:	Return whether this expression is an lvalue.
  */
 
-bool Expression::lvalue() const
+const bool Expression::lvalue() const
 {
     return _lvalue;
 }

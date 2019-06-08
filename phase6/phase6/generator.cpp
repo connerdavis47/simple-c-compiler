@@ -19,6 +19,7 @@
 # include "Register.h"
 # include "Tree.h"
 
+using std::cerr;
 using std::cout;
 using std::endl;
 using std::ostream;
@@ -26,11 +27,14 @@ using std::string;
 using std::stringstream;
 using std::vector;
 
-static int offset, temp_offset;
-static string funcname;
-static Label* return_label; 
-static vector<string> strings;
+static int              offset;
 
+static string           func_name;
+static Label*           return_label;
+static vector<string>   strings;
+
+
+/* 0 disables debug command line outputs */
 
 # define DEBUG_MODE 1
 
@@ -47,7 +51,8 @@ static vector<string> strings;
 
 /* The registers and their related functions */
 
-typedef vector<Register *> Registers;
+typedef vector<Register*> Registers;
+
 
 static Register* rax    = new Register("%rax", "%eax", "%al");
 static Register* rbx    = new Register("%rbx", "%ebx", "%bl");
@@ -68,79 +73,21 @@ static Registers registers;
 static Registers parameters = { rdi, rsi, rdx, rcx, r8, r9 };
 static Registers caller_saved = { r11, r10, r9, r8, rcx, rdx, rsi, rdi, rax };
 
+
 # if CALLEE_SAVED
 static Registers callee_saved = { rbx, r12, r13, r14, r15 };
 # else
 static Registers callee_saved = { };
 # endif
 
-static void assign(Expression* expr, Register* reg);
-static void load(Expression* expr, Register* reg);
 
-Register* get_reg()
-{
-    for (unsigned i = 0; i < registers.size(); ++ i)
-        if (registers[i]->_node == nullptr)
-            return registers[i];
+static int      align(int offset);
+static string   suffix(unsigned long size);
+static string   suffix(Expression* expr);
 
-    load(nullptr, registers[0]);
-    return registers[0];
-}
-
-
-static void debug_open(string id)
-{
-    if (DEBUG_MODE)
-        cout << "\t# ( " << id << endl;
-}
-
-
-static void debug_close(string id)
-{
-    if (DEBUG_MODE)
-        cout << "\t# ... )" << endl;
-}
-
-
-/*
- * Function:	suffix (private)
- *
- * Description:	Return the suffix for an opcode based on the given size.
- */
-
-static string suffix(unsigned long size)
-{
-    return size == 1 ? "b\t" : (size == 4 ? "l\t" : "q\t");
-}
-
-
-/*
- * Function:	suffix (private)
- *
- * Description:	Return the suffix for an opcode based on the size of the
- *		given expression.
- */
-
-static string suffix(Expression* expr)
-{
-    return suffix(expr->type().size());
-}
-
-
-/*
- * Function:	align (private)
- *
- * Description:	Return the number of bytes necessary to align the given
- *		offset on the stack.
- */
-
-static int align(int offset)
-{
-    if (offset % STACK_ALIGNMENT == 0)
-	    return 0;
-
-    return STACK_ALIGNMENT - (abs(offset) % STACK_ALIGNMENT);
-}
+Register*       get_reg();
+static void     assign(Expression* expr, Register* reg);
+static void     load(Expression* expr, Register* reg);
 
 
 /*
@@ -156,13 +103,34 @@ static ostream& operator << (ostream& ostr, Expression* expr)
     if (expr->_register != nullptr)
     {
         unsigned size = expr->type().size();
-
         ostr << expr->_register->name(size);
     }
     else
         expr->operand(ostr);
 
     return ostr;
+}
+
+
+/*
+ * Function:	generate_globals
+ *
+ * Description:	Generate code for any global variable declarations.
+ */
+
+void generate_globals(Scope* scope)
+{
+    const Symbols& symbols = scope->symbols();
+
+    for (unsigned i = 0; i < strings.size(); ++ i)
+        cout << strings[i] << endl;
+
+    for (unsigned i = 0; i < symbols.size(); ++ i)
+        if (!symbols[i]->type().isFunction()) 
+        {
+            cout << "\t.comm\t" << global_prefix << symbols[i]->name() << ", ";
+            cout << symbols[i]->type().size() << endl;
+        }
 }
 
 
@@ -206,11 +174,21 @@ void Number::operand(ostream& ostr) const
 }
 
 
+/*
+ * Function:    String::operand
+ * 
+ * Description: Write a string as an operand to the stream, and remember this string for later when
+ *              the full assembly code is generated.
+ */
+
 void String::operand(ostream& ostr) const
 {
     Label label;
 
     ostr << label << global_suffix;
+
+
+    /* Save to strings global for code generation at the end */
 
     stringstream ss;
     ss << label << ":\n\t.string " << _value << endl;
@@ -236,13 +214,16 @@ void LessThan::test(const Label& label, bool onTrue)
 {
     _left->generate();
     _right->generate();
-    
+
     if (_left->_register == nullptr)
         load(_left, get_reg());
 
-    cout << "\tcmp" << suffix(_left) << _right << ", " << _left << endl;
-    cout << "\tsetl\t" << _left->_register->as_byte() << endl;
-    cout << "\tmovzbl\t" << _left->_register->as_byte() << ", " << _left->_register->as_lword() << endl;
+    cout << "\tcmp" << suffix(_left);
+    cout << _right << ", " << _left << endl;
+    cout << (onTrue ? "\tjl\t" : "\tjge\t") << label << endl;
+
+    assign(_left, nullptr);
+    assign(_right, nullptr);
 }
 
 
@@ -250,13 +231,16 @@ void GreaterThan::test(const Label& label, bool onTrue)
 {
     _left->generate();
     _right->generate();
-    
+
     if (_left->_register == nullptr)
         load(_left, get_reg());
 
-    cout << "\tcmp" << suffix(_left) << _right << ", " << _left << endl;
-    cout << "\tsetg\t" << _left->_register->as_byte() << endl;
-    cout << "\tmovzbl\t" << _left->_register->as_byte() << ", " << _left->_register->as_lword() << endl;
+    cout << "\tcmp" << suffix(_left);
+    cout << _right << ", " << _left << endl;
+    cout << (onTrue ? "\tjg\t" : "\tjle\t") << label << endl;
+
+    assign(_left, nullptr);
+    assign(_right, nullptr);
 }
 
 
@@ -264,13 +248,16 @@ void LessOrEqual::test(const Label& label, bool onTrue)
 {
     _left->generate();
     _right->generate();
-    
+
     if (_left->_register == nullptr)
         load(_left, get_reg());
 
-    cout << "\tcmp" << suffix(_left) << _right << ", " << _left << endl;
-    cout << "\tsetle\t" << _left->_register->as_byte() << endl;
-    cout << "\tmovzbl\t" << _left->_register->as_byte() << ", " << _left->_register->as_lword() << endl;
+    cout << "\tcmp" << suffix(_left);
+    cout << _right << ", " << _left << endl;
+    cout << (onTrue ? "\tjle\t" : "\tjg\t") << label << endl;
+
+    assign(_left, nullptr);
+    assign(_right, nullptr);
 }
 
 
@@ -278,20 +265,21 @@ void GreaterOrEqual::test(const Label& label, bool onTrue)
 {
     _left->generate();
     _right->generate();
-    
+
     if (_left->_register == nullptr)
         load(_left, get_reg());
 
-    cout << "\tcmp" << suffix(_left) << _right << ", " << _left << endl;
-    cout << "\tsetge\t" << _left->_register->as_byte() << endl;
-    cout << "\tmovzbl\t" << _left->_register->as_byte() << ", " << _left->_register->as_lword() << endl;
+    cout << "\tcmp" << suffix(_left);
+    cout << _right << ", " << _left << endl;
+    cout << (onTrue ? "\tjge\t" : "\tjl\t") << label << endl;
+
+    assign(_left, nullptr);
+    assign(_right, nullptr);
 }
 
 
 void Equal::test(const Label& label, bool onTrue)
-{
-    debug_open("EQL");
-
+{cout << "# ~~~ eql\n";
     _left->generate();
     _right->generate();
 
@@ -302,8 +290,9 @@ void Equal::test(const Label& label, bool onTrue)
     cout << _right << ", " << _left << endl;
     cout << (onTrue ? "\tje\t" : "\tjne\t") << label << endl;
 
-    debug_close("EQL");
-}
+    assign(_left, nullptr);
+    assign(_right, nullptr);
+cout << "# ~~~ eql\n";}
 
 
 void NotEqual::test(const Label& label, bool onTrue)
@@ -317,27 +306,64 @@ void NotEqual::test(const Label& label, bool onTrue)
     cout << "\tcmp" << suffix(_left);
     cout << _right << ", " << _left << endl;
     cout << (onTrue ? "\tjne\t" : "\tje\t") << label << endl;
+
+    assign(_left, nullptr);
+    assign(_right, nullptr);
 }
 
 
 void LogicalOr::test(const Label& label, bool onTrue)
-{
-    debug_open("OR");
+{cout << "# === or\n";
+    Label skip;
 
-    Label test;
-
-    _left->test(test, true);
+    _left->test(skip, true);
     _right->test(label, false);
 
-    cout << test << ":";
-
-    debug_close("OR");
-}
+    cout << skip << ":" << endl;
+    cout << "\tmovl\t$1, %eax" << endl;
+cout << "# --- or\n";}
 
 
 void LogicalAnd::test(const Label& label, bool onTrue)
-{
+{cout << "# === and\n";
+    _left->test(label, false);
+    _right->test(label, false);
+cout << "# --- and\n";}
 
+/*
+ * Function:	Simple::generate
+ *
+ * Description:	Generate code for a simple (expression) statement, which
+ *		means simply generating code for the expression.
+ */
+
+void Simple::generate()
+{
+    _expr->generate();
+
+    assign(_expr, nullptr);
+}
+
+
+void Expression::generate_indirect(bool& indirect)
+{
+    indirect = false;
+
+    generate();
+}
+
+
+/*
+ * Function:	Block::generate
+ *
+ * Description:	Generate code for this block, which simply means we
+ *		generate code for each statement within the block.
+ */
+
+void Block::generate()
+{
+    for (unsigned i = 0; i < _stmts.size(); i ++)
+	    _stmts[i]->generate();
 }
 
 
@@ -348,9 +374,7 @@ void LogicalAnd::test(const Label& label, bool onTrue)
  */
 
 void Call::generate()
-{
-    debug_open("CALL");
-
+{cout << "# === call\n";
     unsigned long value, size, bytesPushed = 0;
 
 
@@ -376,8 +400,6 @@ void Call::generate()
 
     for (int i = _args.size() - 1; i >= 0; -- i) 
     {
-        debug_open("ARG");
-
         size = _args[i]->type().size();
 
         if (!_args[i]->_hasCall)
@@ -386,7 +408,7 @@ void Call::generate()
         if (i < NUM_PARAM_REGS)
             load(_args[i], parameters[i]);
 
-        else 
+        else
         {
             bytesPushed += SIZEOF_PARAM;
 
@@ -399,13 +421,12 @@ void Call::generate()
             else 
             {
                 load(_args[i], rax);
+
                 cout << "\tpushq\t%rax" << endl;
             }
         }
 
         assign(_args[i], nullptr);
-
-        debug_close("ARG");
     }
 
 
@@ -431,37 +452,7 @@ void Call::generate()
 	    cout << "\taddq\t$" << bytesPushed << ", %rsp" << endl;
 
     assign(this, rax);
-
-    debug_close("CALL");
-}
-
-
-/*
- * Function:	Block::generate
- *
- * Description:	Generate code for this block, which simply means we
- *		generate code for each statement within the block.
- */
-
-void Block::generate()
-{
-    for (unsigned i = 0; i < _stmts.size(); i ++)
-	    _stmts[i]->generate();
-}
-
-
-/*
- * Function:	Simple::generate
- *
- * Description:	Generate code for a simple (expression) statement, which
- *		means simply generating code for the expression.
- */
-
-void Simple::generate()
-{
-    _expr->generate();
-    assign(_expr, nullptr);
-}
+cout << "# --- call\n";}
 
 
 /*
@@ -493,11 +484,10 @@ void Simple::generate()
 
 void Function::generate()
 {
-    unsigned size;
-    int param_offset;
-    Parameters* params = _id->type().parameters();
-    const Symbols& symbols = _body->declarations()->symbols();
-
+    unsigned        size;
+    int             param_offset;
+    Parameters*     params          = _id->type().parameters();
+    const Symbols&  symbols         = _body->declarations()->symbols();
 
     return_label = new Label();
 
@@ -511,15 +501,12 @@ void Function::generate()
 
     /* Generate the prologue. */
 
-    funcname = _id->name();
+    func_name = _id->name();
 
-    cout << global_prefix << funcname << ":" << endl;
-
-    debug_open("PROLOGUE");
-
+    cout << global_prefix << func_name << ":" << endl;
     cout << "\tpushq\t%rbp" << endl;
 
-    for (unsigned i = 0; i < callee_saved.size(); i ++)
+    for (unsigned i = 0; i < callee_saved.size(); ++ i)
 	    cout << "\tpushq\t" << callee_saved[i] << endl;
 
     cout << "\tmovq\t%rsp, %rbp" << endl;
@@ -527,15 +514,14 @@ void Function::generate()
     if (SIMPLE_PROLOGUE) 
     {
 	    offset -= align(offset - param_offset);
+
 	    cout << "\tsubq\t$" << -offset << ", %rsp" << endl;
-    } 
+    }
     else 
     {
-	    cout << "\tmovl\t$" << funcname << ".size, %eax" << endl;
+	    cout << "\tmovl\t$" << func_name << ".size, %eax" << endl;
 	    cout << "\tsubq\t%rax, %rsp" << endl;
     }
-
-    debug_close("PROLOGUE");
 
 
     /* Spill any parameters. */
@@ -544,21 +530,22 @@ void Function::generate()
         if (i < params->size()) 
         {
             size = symbols[i]->type().size();
+
             cout << "\tmov" << suffix(size) << parameters[i]->name(size);
             cout << ", " << symbols[i]->_offset << "(%rbp)" << endl;
         } 
         else
             break;
 
+
     /* Generate the body and epilogue. */
 
     registers = (_hasCall && callee_saved.size() ? callee_saved : caller_saved);
-    temp_offset = offset;
+
     _body->generate();
-    offset = temp_offset;
 
     cout << *return_label << ":" << endl;
-    cout << endl << global_prefix << funcname << ".exit:" << endl;
+    cout << endl << global_prefix << func_name << ".exit:" << endl;
     cout << "\tmovq\t%rbp, %rsp" << endl;
 
     for (int i = callee_saved.size() - 1; i >= 0; -- i)
@@ -567,118 +554,101 @@ void Function::generate()
     cout << "\tpopq\t%rbp" << endl;
     cout << "\tret" << endl << endl;
 
+
     /* Finish aligning the stack. */
 
     if (!SIMPLE_PROLOGUE) 
     {
 	    offset -= align(offset - param_offset);
-	    cout << "\t.set\t" << funcname << ".size, " << -offset << endl;
+
+	    cout << "\t.set\t" << func_name << ".size, " << -offset << endl;
     }
 
-    cout << "\t.globl\t" << global_prefix << funcname << endl;
-    cout << "\t.type\t" << global_prefix << funcname << ", @function" << endl << endl;
+    cout << "\t.globl\t" << global_prefix << func_name << endl;
+    cout << "\t.type\t" << global_prefix << func_name << ", @function" << endl << endl;
 }
 
-
-/*
- * Function:	generateGlobals
- *
- * Description:	Generate code for any global variable declarations.
- */
-
-void generateGlobals(Scope* scope)
-{
-    const Symbols& symbols = scope->symbols();
-
-    for (unsigned i = 0; i < strings.size(); ++ i)
-        cout << strings[i] << endl;
-
-    for (unsigned i = 0; i < symbols.size(); ++ i)
-        if (!symbols[i]->type().isFunction()) 
-        {
-            cout << "\t.comm\t" << global_prefix << symbols[i]->name() << ", ";
-            cout << symbols[i]->type().size() << endl;
-        }
-}
-
-/*
- * Function:	Assignment::generate
- *
- * Description:	Generate code for an assignment statement.
- *
- *		NOT FINISHED: Only works if the right-hand side is an
- *		integer literal and the left-hand side is an integer
- *		scalar.
- */
-
-void Assignment::generate()
-{
-    debug_open("ASSIGN");
-
-    _left->generate();
-    _right->generate();
-
-    // if left = scalar && right = number
-    cout << "\tmov" << suffix(_left) << _right << ", " << _left << endl;
-
-    debug_close("ASSIGN"); 
-}
 
 void Return::generate()
-{
-    debug_open("RET"); 
-
+{cout << "# === retn\n";
     _expr->generate();
 
     cout << "\tmov" << suffix(_expr) << _expr << ", ";
     cout << (_expr->type().size() == SIZEOF_LONG ? rax->as_qword() : rax->as_lword()) << endl;
     cout << "\tjmp\t" << *return_label << endl;
+cout << "# --- retn\n";}
 
-    debug_close("RET");
-}
 
 void While::generate()
-{
-    debug_open("WHILE");
-
+{cout << "# === whil\n";
     Label loop, exit;
 
     cout << loop << ":" << endl;
 
-    _expr->test(exit, true);
-
-    cout << "\tje\t" << exit << endl;
-
+    _expr->test(exit, false);
     _stmt->generate();
 
     cout << "\tjmp\t" << loop << endl;
     cout << exit << ":" << endl;
+cout << "# --- whil\n";}
 
-    debug_close("WHILE");
-}
 
 void If::generate()
-{
-    debug_open("IF");
-
-    Label skip;
+{cout << "# === if\n";
+    Label skip, exit;
 
     _expr->test(skip, true);
-
-    cout << "\tcmp\t$0, " << _expr << endl;
-    cout << "\tje\t" << skip << endl;
-
     _thenStmt->generate();
 
-    cout << skip << ":";
+    if (_elseStmt != nullptr)
+    {
+        cout << "\tjmp\t" << exit << endl;
+        cout << skip << ":" << endl;
 
-    debug_close("IF");
-}
+        _elseStmt->generate();
+
+        cout << exit << ":" << endl;
+    }
+    else
+        cout << skip << ":" << endl;
+        
+cout << "# --- if\n";}
+
+
+/*
+ * Function:	Assignment::generate
+ *
+ * Description:	Generate code for an assignment statement.
+ */
+
+void Assignment::generate()
+{cout << "# === asgn\n";
+    bool indirect = false;
+
+    _left->generate_indirect(indirect);
+    _right->generate();
+
+    if (_right->_register == nullptr)
+        load(_right, get_reg());
+
+    if (indirect)
+    {
+        if (_left->_register == nullptr)
+            load(_left, get_reg());
+
+        cout << "\tmov" << suffix(_right) << _right << ", (" << _left->_register->as_qword() << ")" << endl;
+    }
+    else
+        cout << "\tmov" << suffix(_right) << _right << ", " << _left << endl;
+
+    assign(_left, nullptr);
+    assign(_right, nullptr);
+
+cout << "# --- asgn\n";}
+
 
 void Subtract::generate()
 {
-    debug_open("SUB");
-    
     _left->generate();
     _right->generate();
 
@@ -690,14 +660,11 @@ void Subtract::generate()
 
     assign(_right, nullptr);
     assign(this, _left->_register);
-
-    debug_close("SUB"); 
 }
+
 
 void Add::generate()
 {
-    debug_open("ADD");
-    
     _left->generate();
     _right->generate();
 
@@ -709,14 +676,11 @@ void Add::generate()
 
     assign(_right, nullptr);
     assign(this, _left->_register);
-
-    debug_close("ADD"); 
 }
+
 
 void Remainder::generate()
 {
-    debug_open("REM");
-
     _left->generate();
     _right->generate();
 
@@ -726,14 +690,11 @@ void Remainder::generate()
     cout << "\tidiv" << suffix(_right) << _right << endl;
 
     assign(this, rdx);
-
-    debug_close("REM");
 }
+
 
 void Divide::generate()
 {
-    debug_open("DIV");
-
     _left->generate();
     _right->generate();
 
@@ -743,14 +704,11 @@ void Divide::generate()
     cout << "\tidiv" << suffix(_right) << _right << endl;
 
     assign(this, rax);
-
-    debug_close("DIV");
 }
+
 
 void Multiply::generate()
 {
-    debug_open("MUL");
-
     _left->generate();
     _right->generate();
 
@@ -761,46 +719,86 @@ void Multiply::generate()
 
     assign(_right, nullptr);
     assign(this, _left->_register);
-
-    debug_close("MUL");
 }
+
 
 void Cast::generate()
-{
+{cout << "# === cast\n";
+    _expr->generate();
 
-}
+    unsigned source = _expr->type().size();
+    unsigned target = _type.size();
+
+    if (_expr->_register == nullptr)
+        load(_expr, get_reg());
+
+    if (target <= source)
+        assign(this, _expr->_register);
+    else
+    {
+        cout << "\tmovslq\t" << _expr << ", " << _expr->_register->as_qword() << endl;
+
+        assign(this, _expr->_register);
+        assign(_expr, nullptr);
+    }
+cout << "# --- cast\n";}
+
 
 void Address::generate()
-{
-    debug_open("ADDR");
-
+{cout << "# === addr\n";
     _expr->generate();
 
-    cout << "\tleaq\t" << _expr << ", ";
-    assign(_expr, get_reg());
-    cout << _expr->_register->as_qword() << endl;
+    if (_expr->type().indirection() == 0)
+    {
+        if (_expr->_register == nullptr)
+        {
+            cout << "\tleaq\t" << _expr << ", ";
+            assign(_expr, get_reg());
+            cout << _expr->_register->as_qword() << endl;
+        }
+        else
+            cout << "\tleaq\t(" << _expr->_register->as_qword() << "), " << _expr->_register->as_qword() << endl;
 
-    assign(this, _expr->_register);
-    assign(_expr, nullptr);
+        assign(this, _expr->_register);
+        assign(_expr, nullptr);
+    }
+cout << "# --- addr\n";}
 
-    debug_close("ADDR");
-}
 
 void Dereference::generate()
-{
-    debug_open("DEREF");
+{cout << "# === deref\n";
+    _expr->generate();
+
+    if (_expr->_register == nullptr)
+        load(_expr, get_reg());
+
+    cout << "\tmov" << suffix(_expr) << "(" << _expr << "), " << _expr << endl;
+    
+    assign(this, _expr->_register);
+    assign(_expr, nullptr);
+cout << "# --- deref\n";}
+
+
+void Dereference::generate_indirect(bool& indirect)
+{cout << "# === * deref\n";
+    indirect = true;
 
     _expr->generate();
 
-    cout << "\tmovl\t" << _expr << ", %eax" << endl;
+    if (_expr->type().indirection() > 0)
+    {
+        if (_expr->_register == nullptr)
+            load(_expr, get_reg());
 
-    debug_close("DEREF");
-}
+        assign(this, _expr->_register);
+    }
+
+    assign(_expr, nullptr);
+cout << "# --- * deref\n";}
+
 
 void Negate::generate()
 {
-    debug_open("NEG");
-
     _expr->generate();
 
     if (_expr->_register == nullptr)
@@ -809,21 +807,89 @@ void Negate::generate()
     cout << "\tneg" << suffix(_expr) << _expr << endl;
 
     assign(this, _expr->_register);
-
-    debug_close("NEG");
+    assign(_expr, nullptr);
 }
+
 
 void Not::generate()
 {
-    debug_open("NOT");
+    _expr->generate();
 
-    debug_close("NOT");
+    if (_expr->_register == nullptr)
+        load(_expr, get_reg());
+
+    cout << "\tcmp" << suffix(_expr) << "\t$0, " << _expr << endl;
+    cout << "\tsete\t" << _expr->_register->as_byte() << endl;
+    cout << "\tmovzbl\t" << _expr->_register->as_byte() << ", " << _expr << endl;
+
+    assign(this, _expr->_register);
+    assign(_expr, nullptr);
 }
+
 
 void Field::generate()
 {
 
 }
+
+
+/*
+ * Function:	align (private)
+ *
+ * Description:	Return the number of bytes necessary to align the given
+ *		offset on the stack.
+ */
+
+static int align(int offset)
+{
+    if (offset % STACK_ALIGNMENT == 0)
+	    return 0;
+
+    return STACK_ALIGNMENT - (abs(offset) % STACK_ALIGNMENT);
+}
+
+
+/*
+ * Function:	suffix (private)
+ *
+ * Description:	Return the suffix for an opcode based on the given size.
+ */
+
+static string suffix(unsigned long size)
+{
+    return size == 1 ? "b\t" : (size == 4 ? "l\t" : "q\t");
+}
+
+
+/*
+ * Function:	suffix (private)
+ *
+ * Description:	Return the suffix for an opcode based on the size of the
+ *		given expression.
+ */
+
+static string suffix(Expression* expr)
+{
+    return suffix(expr->type().size());
+}
+
+
+/*
+ * Function:	get_reg
+ *
+ * Description:	Returns the next register that is not currently being used.
+ */
+
+Register* get_reg()
+{
+    for (unsigned i = 0; i < registers.size(); ++ i)
+        if (registers[i]->_node == nullptr)
+            return registers[i];
+
+    load(nullptr, registers[0]);
+    return registers[0];
+}
+
 
 /*
  * Function:	assign (private)

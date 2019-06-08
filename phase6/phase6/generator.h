@@ -8,8 +8,9 @@
 
 # ifndef GENERATOR_H
 # define GENERATOR_H
+
 # include "Scope.h"
 
-void generateGlobals(Scope *scope);
+void generate_globals(Scope* scope);
 
 # endif /* GENERATOR_H */
